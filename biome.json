@@ -1,0 +1,11 @@
+{
+    "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+    "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+    "files": {
+        "includes": ["**", "!drizzle", "!src/db/auth-schema.ts", "!skills-lock.json", "!.agents", "!.claude"]
+    },
+    "formatter": { "enabled": true, "useEditorconfig": true, "lineWidth": 120 },
+    "linter": { "enabled": false },
+    "assist": { "actions": { "source": { "organizeImports": "on" } } },
+    "css": { "parser": { "tailwindDirectives": true } }
+}

@@ -1,0 +1,155 @@
+@import "tailwindcss";
+
+@custom-variant private (&:where([data-privacy] *));
+
+/* Swiss theme, dark only. Hex values and contrast against --background are
+   for reference. Each chart colour keeps one meaning in every chart. */
+:root {
+    color-scheme: dark;
+    --radius: 0rem;
+
+    --background: oklch(0.19 0.004 250); /* #121416 */
+    --foreground: oklch(0.965 0.003 250); /* #f2f4f5  16.7:1 */
+    --popover: oklch(0.235 0.005 250); /* #1c1e20 */
+    --secondary: oklch(0.255 0.006 250); /* #212326 */
+    --muted: oklch(0.225 0.005 250); /* #1a1c1e */
+    --muted-foreground: oklch(0.76 0.008 250); /* #adb1b6  8.6:1 */
+    --border: oklch(0.33 0.006 250); /* #333638 */
+    --input: oklch(0.4 0.008 250); /* #44484c */
+
+    --primary: oklch(0.66 0.11 192); /* #16a7a3  6.2:1 */
+    --primary-foreground: oklch(0.19 0.004 250); /* #121416 */
+    --ring: oklch(0.76 0.11 192); /* #48c7c3 */
+    --destructive: oklch(0.69 0.17 22); /* #f2696a */
+
+    --chart-1: oklch(0.66 0.11 192); /* #16a7a3  portfolio */
+    --chart-2: oklch(0.665 0.14 55); /* #d47932  benchmark */
+    --chart-3: oklch(0.53 0.008 250); /* #686c70  amount invested */
+
+    --positive: oklch(0.8 0.15 150); /* #6ed889  10.4:1 */
+    --negative: oklch(0.69 0.17 22); /* #f2696a  6.2:1 */
+    --annotation: oklch(0.965 0.003 250 / 5.5%);
+    --logo-dot: oklch(0.665 0.14 55); /* #d47932 */
+
+    /* Holding types. All but Avoid keep clear of the chart, gain and loss
+       colours. */
+    --compounder: oklch(0.83 0.13 92); /* #e6c45a  10.9:1 */
+    --bargain: oklch(0.76 0.11 245); /* #72b8f2  8.7:1 */
+    --cigar-butt: oklch(0.72 0.07 62); /* #c59b77  7.3:1 */
+    --cyclical: oklch(0.76 0.12 300); /* #bd9ff2  8.3:1 */
+    --asset-play: oklch(0.78 0.11 350); /* #ed9ac1  8.8:1 */
+    --avoid: var(--negative);
+    --core: oklch(0.86 0.005 250); /* #ced1d4  12.0:1 */
+}
+
+@theme inline {
+    --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-popover: var(--popover);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-destructive: var(--destructive);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-positive: var(--positive);
+    --color-negative: var(--negative);
+    --color-annotation: var(--annotation);
+    --color-logo-dot: var(--logo-dot);
+    --color-compounder: var(--compounder);
+    --color-bargain: var(--bargain);
+    --color-cigar-butt: var(--cigar-butt);
+    --color-cyclical: var(--cyclical);
+    --color-asset-play: var(--asset-play);
+    --color-avoid: var(--avoid);
+    --color-core: var(--core);
+
+    --text-note: 0.8125rem;
+    --text-note--line-height: 1.5;
+
+    --blur-money: max(8px, 0.3em);
+
+    --radius-xs: var(--radius);
+    --radius-sm: var(--radius);
+    --radius-md: var(--radius);
+    --radius-lg: var(--radius);
+    --radius-xl: var(--radius);
+    --radius-2xl: var(--radius);
+    --radius-3xl: var(--radius);
+    --radius-4xl: var(--radius);
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground font-sans antialiased;
+    }
+    :focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: 2px;
+    }
+    summary::-webkit-details-marker {
+        display: none;
+    }
+}
+
+@layer components {
+    .type-section {
+        font-size: 2.125rem;
+        font-weight: 700;
+        font-stretch: 80%;
+        letter-spacing: -0.01em;
+        line-height: 1.05;
+    }
+    .type-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--muted-foreground);
+    }
+    .type-hero {
+        font-size: clamp(3.5rem, 11vw, 6.25rem);
+        font-weight: 600;
+        font-stretch: 72%;
+        letter-spacing: -0.03em;
+        line-height: 0.9;
+        white-space: nowrap;
+    }
+    .type-kpi {
+        font-size: 2.5rem;
+        font-weight: 600;
+        font-stretch: 75%;
+        letter-spacing: -0.02em;
+        line-height: 1;
+    }
+    .type-subsection {
+        font-size: 1.25rem;
+        font-weight: 700;
+        font-stretch: 85%;
+        line-height: 1.4;
+    }
+
+    /* Arrows for gains and losses, hidden from screen readers, which read the
+     sign instead. */
+    .arrow-up::before,
+    .arrow-down::before {
+        font-size: 0.62em;
+        margin-right: 0.3125rem;
+        vertical-align: 0.18em;
+    }
+    .arrow-up::before {
+        content: "▲" / "";
+    }
+    .arrow-down::before {
+        content: "▼" / "";
+    }
+}

@@ -1,0 +1,1 @@
+ALTER TABLE `portfolio_daily` DROP COLUMN `cost_basis_cents`;

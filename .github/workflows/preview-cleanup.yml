@@ -1,0 +1,53 @@
+name: Preview cleanup
+
+# Deletes Vercel preview deployments of branches without an open PR. Run it
+# by hand once to clear the backlog; after that each merged or closed PR
+# triggers it.
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+
+concurrency: preview-cleanup
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  cleanup:
+    if: vars.VERCEL_PROJECT != ''
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      SCOPE: ${{ vars.VERCEL_SCOPE }}
+      PROJECT: ${{ vars.VERCEL_PROJECT }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - run: |
+          set -euo pipefail
+          api=https://api.vercel.com
+          auth="Authorization: Bearer $VERCEL_TOKEN"
+
+          keep=$(gh pr list -R "$GITHUB_REPOSITORY" --state open --limit 200 \
+            --json headRefName | jq -c 'map(.headRefName) + ["main"]')
+
+          ids=()
+          until_ts=""
+          while :; do
+            page=$(curl -fsS -H "$auth" \
+              "$api/v7/deployments?slug=$SCOPE&projectId=$PROJECT&limit=100${until_ts:+&until=$until_ts}")
+            # CLI deployments have no githubCommitRef and are left alone.
+            mapfile -t -O "${#ids[@]}" ids < <(jq -r --argjson keep "$keep" '.deployments[]
+              | select(.target != "production" and .meta.githubCommitRef != null)
+              | select(.meta.githubCommitRef as $b | $keep | any(. == $b) | not)
+              | .uid' <<<"$page")
+            until_ts=$(jq -r '.pagination.next // empty' <<<"$page")
+            [ -n "$until_ts" ] || break
+          done
+
+          for id in "${ids[@]}"; do
+            curl -fsS -X DELETE -H "$auth" "$api/v13/deployments/$id?slug=$SCOPE" >/dev/null
+            echo "deleted $id"
+          done
+          echo "${#ids[@]} preview deployments deleted"

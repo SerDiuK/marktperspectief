@@ -1,0 +1,8 @@
+{
+    "mcpServers": {
+        "marktperspectief": {
+            "command": "pnpm",
+            "args": ["--silent", "mcp"]
+        }
+    }
+}
