@@ -1,0 +1,32 @@
+name: Evals
+
+on:
+  pull_request:
+    paths:
+      - "src/mcp/**"
+      - "src/lib/schemas.ts"
+      - "evals/**"
+  workflow_dispatch:
+    inputs:
+      model:
+        description: The model to run the cases against
+        default: claude-sonnet-5-5
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      EVAL_MODEL: ${{ inputs.model || 'claude-sonnet-5-5' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - if: env.ANTHROPIC_API_KEY != ''
+        run: pnpm eval
+      - if: env.ANTHROPIC_API_KEY == ''
+        run: echo "No ANTHROPIC_API_KEY secret, so the evals didn't run." >> "$GITHUB_STEP_SUMMARY"

@@ -1,3 +1,4 @@
+import { RESOURCE_MIME_TYPE, registerAppResource, registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { McpServer } from "@modelcontextprotocol/server";
 import type { Db } from "@/db/connect";
 import { getPendingChatTrades } from "@/db/ledger";
@@ -15,17 +16,22 @@ import {
     proposeThesis,
     undoChatTransaction,
 } from "./chat";
+import { draftCard, draftCardUri } from "./draft-card";
 
-const json = (value: unknown) => ({
+const json = (value: Record<string, unknown>) => ({
     content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
+    structuredContent: value,
 });
+
+const withCard = { ui: { resourceUri: draftCardUri } };
+const cardOnly = { ui: { visibility: ["app" as const] } };
 
 export function buildServer(db: Db) {
     const server = new McpServer(
         { name: "marktperspectief", version: "0.1.0" },
         {
             instructions:
-                "Amounts are in EUR at ECB rates unless a field names another currency. A trade, a thesis or a new instrument is recorded in two steps: add_transaction, propose_thesis or add_instrument returns a preview, and confirm_transaction, confirm_thesis or confirm_instrument writes it only after the user has agreed to that preview in a message of their own. Mention every warning in the preview.",
+                "Amounts are in EUR at ECB rates unless a field names another currency. A trade, a thesis or a new instrument is recorded in two steps: add_transaction, propose_thesis or add_instrument returns a preview and keeps it as a draft, and nothing is saved until the user confirms that draft. When confirm_transaction, confirm_thesis and confirm_instrument aren't among your tools, the preview shows as a card and only its Confirm button saves it, so ask the user to press it. Otherwise call the confirm tool only after the user has agreed to that preview in a message of their own. Mention every warning in the preview.",
         },
     );
 
@@ -75,24 +81,28 @@ export function buildServer(db: Db) {
         },
     );
 
-    server.registerTool(
+    registerAppTool(
+        server,
         "add_transaction",
         {
             title: "Add a transaction",
             description:
-                "Checks a buy or sell the user made and returns a preview with its total in EUR, the shares held after it and any warnings, kept as a draft for 30 minutes. Nothing is recorded until confirm_transaction. When the instrument matches several securities, it returns them as candidates and makes no draft.",
+                "Checks a buy or sell the user made and returns a preview with its total in EUR, the shares held after it and any warnings, kept as a draft for 30 minutes. Nothing is recorded until the user confirms it. When the instrument matches several securities, it returns them as candidates and makes no draft.",
             inputSchema: transactionInput,
+            _meta: withCard,
         },
-        async (input) => json(await addTransaction(db, input, new Date())),
+        async (input) => json({ kind: "trade", ...(await addTransaction(db, input, new Date())) }),
     );
 
-    server.registerTool(
+    registerAppTool(
+        server,
         "confirm_transaction",
         {
             title: "Confirm a transaction",
             description:
                 "Records a draft from add_transaction in the ledger. Call it only after the user has agreed to the preview. The broker's next export replaces the trade with its own row.",
             inputSchema: draftInput,
+            _meta: cardOnly,
         },
         async ({ draftId }) => json(await confirmTransaction(db, draftId, new Date())),
     );
@@ -109,48 +119,73 @@ export function buildServer(db: Db) {
         async ({ draftId }) => json(await undoChatTransaction(db, draftId, new Date())),
     );
 
-    server.registerTool(
+    registerAppTool(
+        server,
         "propose_thesis",
         {
             title: "Propose a thesis",
             description:
-                "Checks a thesis the user wrote for a holding and returns it as a preview, kept as a draft for 30 minutes. Nothing is saved until confirm_thesis. A saved thesis replaces the holding's current one whole, so a change sends every pillar again. When the instrument matches several securities, it returns them as candidates and makes no draft.",
+                "Checks a thesis the user wrote for a holding and returns it as a preview, kept as a draft for 30 minutes. Nothing is saved until the user confirms it. A saved thesis replaces the holding's current one whole, so a change sends every pillar again. When the instrument matches several securities, it returns them as candidates and makes no draft.",
             inputSchema: thesisInput,
+            _meta: withCard,
         },
-        async (input) => json(await proposeThesis(db, input, new Date())),
+        async (input) => json({ kind: "thesis", ...(await proposeThesis(db, input, new Date())) }),
     );
 
-    server.registerTool(
+    registerAppTool(
+        server,
         "confirm_thesis",
         {
             title: "Confirm a thesis",
             description:
                 "Saves a draft from propose_thesis as the holding's current thesis. Call it only after the user has agreed to the preview.",
             inputSchema: draftInput,
+            _meta: cardOnly,
         },
         async ({ draftId }) => json(await confirmThesis(db, draftId, new Date())),
     );
 
-    server.registerTool(
+    registerAppTool(
+        server,
         "add_instrument",
         {
             title: "Add an instrument",
             description:
-                "Checks a security the ledger doesn't know yet, before its first trade, thesis or import, and returns it as a preview, kept as a draft for 30 minutes. Nothing is saved until confirm_instrument. Look up its ISIN and Yahoo symbol first; the symbol's listing sets the currency.",
+                "Checks a security the ledger doesn't know yet, before its first trade, thesis or import, and returns it as a preview, kept as a draft for 30 minutes. Nothing is saved until the user confirms it. Look up its ISIN and Yahoo symbol first; the symbol's listing sets the currency.",
             inputSchema: instrumentInput,
+            _meta: withCard,
         },
-        async (input) => json(await addInstrument(db, input, new Date())),
+        async (input) => json({ kind: "instrument", ...(await addInstrument(db, input, new Date())) }),
     );
 
-    server.registerTool(
+    registerAppTool(
+        server,
         "confirm_instrument",
         {
             title: "Confirm an instrument",
             description:
                 "Saves a draft from add_instrument. Call it only after the user has agreed to the preview, then refresh_prices to fetch its closes.",
             inputSchema: draftInput,
+            _meta: cardOnly,
         },
         async ({ draftId }) => json(await confirmInstrument(db, draftId, new Date())),
+    );
+
+    registerAppResource(
+        server,
+        "Draft card",
+        draftCardUri,
+        { description: "A draft trade, thesis or instrument with a Confirm button" },
+        async () => ({
+            contents: [
+                {
+                    uri: draftCardUri,
+                    mimeType: RESOURCE_MIME_TYPE,
+                    text: draftCard,
+                    _meta: { ui: { prefersBorder: true } },
+                },
+            ],
+        }),
     );
 
     return server;
