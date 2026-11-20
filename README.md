@@ -4,12 +4,9 @@ A self-hosted dashboard for one investor's portfolio across brokers, with Claude
 
 Try the demo at https://marktperspectief-demo.vercel.app: an invented investor, reloaded every night.
 
-<table>
-  <tr>
-    <td width="50%"><video src="https://github.com/user-attachments/assets/e4519396-6b8f-4102-baa2-42ca09474380" controls muted width="100%"></video><br><sub>A tour on a desktop</sub></td>
-    <td width="50%"><video src="https://github.com/user-attachments/assets/b6a76e35-af17-4651-a4e5-0c65429098dc" controls muted width="100%"></video><br><sub>The same on a phone</sub></td>
-  </tr>
-</table>
+<video src="https://github.com/user-attachments/assets/e4519396-6b8f-4102-baa2-42ca09474380" controls muted width="100%"></video>
+
+<video src="https://github.com/user-attachments/assets/b6a76e35-af17-4651-a4e5-0c65429098dc" controls muted width="100%"></video>
 
 <table>
   <tr>
