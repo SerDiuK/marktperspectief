@@ -4,15 +4,32 @@ A self-hosted dashboard for one investor's portfolio across brokers, with Claude
 
 Try the demo at https://marktperspectief-demo.vercel.app: an invented investor, reloaded every night.
 
+<video src="https://github.com/user-attachments/assets/e4519396-6b8f-4102-baa2-42ca09474380" controls muted width="100%"></video>
+
+<video src="https://github.com/user-attachments/assets/b6a76e35-af17-4651-a4e5-0c65429098dc" controls muted width="100%"></video>
+
 <table>
   <tr>
-    <td width="50%"><video src="https://github.com/user-attachments/assets/e4519396-6b8f-4102-baa2-42ca09474380
-" controls muted width="100%"></video><br><sub>A tour on a desktop</sub></td>
-    <td width="50%"><video src="https://github.com/user-attachments/assets/b6a76e35-af17-4651-a4e5-0c65429098dc
-" controls muted width="100%"></video><br><sub>The same on a phone</sub></td>
+    <td width="33%"><img src="docs/screenshots/01-login.png" alt="The demo opens with one click, no passkey needed"><br><sub>The demo opens with one click, no passkey needed</sub></td>
+    <td width="33%"><img src="docs/screenshots/02-overview.png" alt="Hover the chart for the portfolio's value on any day"><br><sub>Hover the chart for the portfolio's value on any day</sub></td>
+    <td width="33%"><img src="docs/screenshots/03-total-return.png" alt="Total return in parts: realised, unrealised, dividends, premiums, fees"><br><sub>Total return in parts: realised, unrealised, dividends, premiums, fees</sub></td>
+  </tr>
+  <tr>
+    <td width="33%"><img src="docs/screenshots/04-net-invested.png" alt="Net invested is the money put in: the gap to the value is the gain"><br><sub>Net invested is the money put in: the gap to the value is the gain</sub></td>
+    <td width="33%"><img src="docs/screenshots/05-vs-market.png" alt="vs market sets the time-weighted return against an index"><br><sub>vs market sets the time-weighted return against an index</sub></td>
+    <td width="33%"><img src="docs/screenshots/06-holdings.png" alt="Holdings by type and weight, then closed positions with their result"><br><sub>Holdings by type and weight, then closed positions with their result</sub></td>
+  </tr>
+  <tr>
+    <td width="33%"><img src="docs/screenshots/07-holding-panel.png" alt="A holding opens its chart with the trades marked, and its position"><br><sub>A holding opens its chart with the trades marked, and its position</sub></td>
+    <td width="33%"><img src="docs/screenshots/08-thesis-and-trades.png" alt="Its thesis, and every trade and dividend with the broker that booked it"><br><sub>Its thesis, and every trade and dividend with the broker that booked it</sub></td>
+    <td width="33%"><img src="docs/screenshots/09-dividends.png" alt="Dividends received each year, and an estimate for the next 12 months"><br><sub>Dividends received each year, and an estimate for the next 12 months</sub></td>
+  </tr>
+  <tr>
+    <td width="33%"><img src="docs/screenshots/10-options.png" alt="Sold puts, valued at the underlying's last close"><br><sub>Sold puts, valued at the underlying's last close</sub></td>
+    <td width="33%"><img src="docs/screenshots/11-privacy.png" alt="The eye blurs every amount; percentages and prices stay readable"><br><sub>The eye blurs every amount; percentages and prices stay readable</sub></td>
+    <td width="33%"><img src="docs/screenshots/12-import.png" alt="Import takes broker exports, and lists every file with what it covered"><br><sub>Import takes broker exports, and lists every file with what it covered</sub></td>
   </tr>
 </table>
-
 
 ## What it does
 
@@ -69,7 +86,12 @@ It runs on Vercel, with a Turso database and a private Vercel Blob store.
 2. Create a Turso database, and connect a private Blob store to the project, which sets `BLOB_READ_WRITE_TOKEN`.
 3. Set the other env vars in `.env.example`: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (your domain), `CRON_SECRET` and `AUTH_SETUP_TOKEN`, and optionally `OWNER_NAME` and `OWNER_TIME_ZONE`.
 4. Deploy. The production build migrates the database. Functions run in Dublin (`dub1`): change `regions` in `vercel.json` to match your database.
-5. Open `/login?setup`, enter the setup token and register your passkey, then remove `AUTH_SETUP_TOKEN`.
+5. Open `/login?setup`, enter the setup token and register your passkey.
+
+There is no sign-up and no password: the only way in is a passkey, and registering one normally needs a session. `AUTH_SETUP_TOKEN` lets you register the first passkey without one, and proves it's you, since a new `vercel.app` address can be found within minutes of its first deploy. Generate it with `openssl rand -base64 32`. Once your passkey exists the token is refused, so removing it afterwards is tidying up rather than a must.
+
+- **Another device:** sign in there with the passkey you have, synced or from your phone through the browser's QR code, then register one at `/login?setup` with the token left empty.
+- **Every passkey lost:** delete your row in the `passkey` table, set a fresh token and register again.
 
 Vercel cron calls `/api/cron/daily` at 22:00 and 05:00 UTC to fetch prices and rebuild the daily series.
 
