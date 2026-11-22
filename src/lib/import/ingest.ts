@@ -354,7 +354,6 @@ async function applyRaw(
             kind: raw.kind,
             sha256: raw.sha256,
             originalName: raw.originalName,
-            uploadedAt: raw.uploadedAt,
             updatedAt: raw.uploadedAt,
             parserVersion,
             status,
@@ -525,7 +524,6 @@ export async function rebuild(db: Db) {
         );
     const results: IngestResult[] = [];
 
-    // Instruments go first: every other file names them.
     let pending = [...files.filter(definesInstruments), ...files.filter((file) => !definesInstruments(file))].map(
         (file, index) => ({ ...file, index }),
     );
