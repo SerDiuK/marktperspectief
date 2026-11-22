@@ -21,10 +21,11 @@ export function append<T>(series: Map<string, T[]>, key: string, item: T) {
     else series.set(key, [item]);
 }
 
-export function tradePrices(trades: Trade[], lastClose: Map<string, string>) {
+export function tradePrices(trades: Trade[], lastClose: Map<string, string>, firstClose = new Map<string, string>()) {
     return trades.filter(
         ({ instrumentId, side, tradeDate }) =>
-            (side === "buy" || side === "sell") && tradeDate > (lastClose.get(instrumentId) ?? ""),
+            (side === "buy" || side === "sell") &&
+            (tradeDate > (lastClose.get(instrumentId) ?? "") || tradeDate < (firstClose.get(instrumentId) ?? "")),
     );
 }
 

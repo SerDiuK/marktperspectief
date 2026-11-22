@@ -32,13 +32,16 @@ export async function refreshDerived(db: Db, today: string) {
     }
 
     const lastClose = new Map(closes.map(({ instrumentId, date }) => [instrumentId, date]));
+    const firstClose = new Map(closes.toReversed().map(({ instrumentId, date }) => [instrumentId, date]));
 
-    for (const trade of tradePrices(trades, lastClose)) {
+    for (const trade of tradePrices(trades, lastClose, firstClose)) {
         append(prices, trade.instrumentId, {
             date: trade.tradeDate,
             value: toEur(trade.price, trade.currency, trade.tradeDate),
         });
     }
+
+    for (const series of prices.values()) series.sort((a, b) => a.date.localeCompare(b.date));
 
     const cashFlows = [...ledger.incomeFlows, ...ledger.feeFlows];
     const latestClose = closes.reduce((latest, { date }) => (date > latest ? date : latest), "");
