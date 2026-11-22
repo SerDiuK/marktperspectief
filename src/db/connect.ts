@@ -2,6 +2,8 @@ import { drizzle } from "drizzle-orm/libsql";
 
 export type Db = ReturnType<typeof connect>;
 
+export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
 export const localConnection = { url: "file:.data/dev.db" };
 
 export function tursoConnection() {

@@ -208,10 +208,6 @@ export async function undoChatTransaction(db: Db, draftId: string, now: Date) {
 }
 
 export async function proposeThesis(db: Db, { instrument: query, ...input }: ThesisInput, now: Date) {
-    if (input.type !== "avoid" && input.pillars.length < 2) {
-        throw new Error("A thesis needs two to four pillars; only avoid can have fewer");
-    }
-
     const match = await findInstrument(db, query);
 
     if ("candidates" in match) return match;
