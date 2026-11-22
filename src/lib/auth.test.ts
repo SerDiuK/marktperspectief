@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { passkey, user } from "@/db/auth-schema";
+import { passkey, session, user } from "@/db/auth-schema";
 import { instrumentsFile } from "@/lib/demo/marker";
 import { ingestRaw } from "@/lib/import/ingest";
 import { auth, isSignedIn } from "./auth";
@@ -65,4 +65,24 @@ it("signs a visitor in to the demo only under DEMO_MODE and on the demo's databa
 
     vi.stubEnv("DEMO_MODE", "");
     await expect(demoSignIn()).rejects.toThrow("This is not the demo");
+});
+
+it("keeps demo visitors out of the shared account: no session list, and no IP stored", async () => {
+    const base = "http://localhost:3000";
+
+    vi.stubEnv("DEMO_MODE", "1");
+    await ingestRaw(db, instrumentsFile);
+
+    const signIn = await auth.handler(
+        new Request(`${base}/api/auth/demo/sign-in`, {
+            method: "POST",
+            headers: { "content-type": "application/json", origin: base, "x-forwarded-for": "203.0.113.7" },
+            body: "{}",
+        }),
+    );
+    const cookie = signIn.headers.get("set-cookie")?.split(";")[0] ?? "";
+    const sessions = await auth.handler(new Request(`${base}/api/auth/list-sessions`, { headers: { cookie } }));
+
+    expect(sessions.status).toBe(403);
+    expect(await db.select({ ip: session.ipAddress }).from(session)).not.toContainEqual({ ip: "203.0.113.7" });
 });

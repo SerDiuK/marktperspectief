@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { db } from "@/db";
 import { isSignedIn } from "@/lib/auth";
 import { ownerDate } from "@/lib/dates";
+import { isDemo } from "@/lib/demo/marker";
 import { ingestRaw, notImported } from "@/lib/import/ingest";
 import type { IngestResult } from "@/lib/import/types";
 import { refreshDerived } from "@/lib/portfolio/refresh";
@@ -12,10 +13,16 @@ import { refreshDerived } from "@/lib/portfolio/refresh";
 export async function uploadImports(_previous: IngestResult[], formData: FormData) {
     if (!(await isSignedIn(await headers()))) throw new Error("Not signed in");
 
+    const demo = await isDemo(db);
     const results: IngestResult[] = [];
 
     for (const file of formData.getAll("files")) {
         if (!(file instanceof File) || file.size === 0) continue;
+
+        if (demo) {
+            results.push(notImported(file.name, "rejected", "The demo takes no uploads"));
+            continue;
+        }
 
         try {
             const bytes = new Uint8Array(await file.arrayBuffer());

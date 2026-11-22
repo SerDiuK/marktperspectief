@@ -4,12 +4,12 @@ import { mcp } from "@better-auth/mcp";
 import { passkey } from "@better-auth/passkey";
 import { type AuthContext, type BetterAuthPlugin, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { APIError, createAuthEndpoint } from "better-auth/api";
+import { APIError, createAuthEndpoint, createAuthMiddleware } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import { jwt } from "better-auth/plugins";
 import { db } from "@/db";
 import * as schema from "@/db/auth-schema";
-import { isDemoDatabase } from "@/lib/demo/marker";
+import { isDemo } from "@/lib/demo/marker";
 import { matchesSecret } from "./secret";
 
 // Single-user app: there is exactly one account, identified by this label (never mailed).
@@ -33,21 +33,65 @@ async function owner(adapter: InternalAdapter) {
     );
 }
 
+const accountPaths = new Set([
+    "/list-sessions",
+    "/revoke-session",
+    "/revoke-sessions",
+    "/revoke-other-sessions",
+    "/update-session",
+    "/update-user",
+    "/delete-user",
+    "/change-email",
+    "/list-accounts",
+    "/account-info",
+    "/unlink-account",
+    "/passkey/generate-register-options",
+    "/passkey/verify-registration",
+    "/passkey/list-user-passkeys",
+    "/passkey/update-passkey",
+    "/passkey/delete-passkey",
+    "/oauth2/get-consent",
+    "/oauth2/get-consents",
+    "/oauth2/update-consent",
+    "/oauth2/delete-consent",
+    "/oauth2/create-client",
+    "/oauth2/get-client",
+    "/oauth2/get-clients",
+    "/oauth2/update-client",
+    "/oauth2/delete-client",
+    "/oauth2/client/rotate-secret",
+]);
+
 const demo = {
     id: "demo",
     endpoints: {
         demoSignIn: createAuthEndpoint("/demo/sign-in", { method: "POST" }, async (ctx) => {
-            if (process.env.DEMO_MODE !== "1" || !(await isDemoDatabase(db))) {
+            if (!(await isDemo(db))) {
                 throw new APIError("FORBIDDEN", { message: "This is not the demo" });
             }
 
             const user = await owner(ctx.context.internalAdapter);
-            const session = await ctx.context.internalAdapter.createSession(user.id);
+            const session = await ctx.context.internalAdapter.createSession(user.id, false, {
+                ipAddress: "",
+                userAgent: "",
+            });
 
             await setSessionCookie(ctx, { session, user });
 
             return ctx.json({ ok: true });
         }),
+    },
+    hooks: {
+        before: [
+            {
+                matcher: ({ path }) => accountPaths.has(path ?? ""),
+                handler: createAuthMiddleware(async () => {
+                    if (await isDemo(db)) {
+                        throw new APIError("FORBIDDEN", { message: "Not on the demo" });
+                    }
+                }),
+            },
+        ],
     },
 } satisfies BetterAuthPlugin;
 
