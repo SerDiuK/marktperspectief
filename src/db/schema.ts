@@ -33,7 +33,6 @@ export const rawImports = sqliteTable("raw_imports", {
     }).notNull(),
     sha256: text().notNull().unique(),
     originalName: text().notNull(),
-    uploadedAt: text().notNull(),
     updatedAt: text().notNull(),
     parserVersion: integer().notNull(),
     status: text({ enum: ["applied", "failed"] }).notNull(),

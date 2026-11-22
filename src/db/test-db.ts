@@ -28,7 +28,6 @@ const testInstruments: (typeof instruments.$inferInsert)[] = [
     { id: "telenet", isin: "BE0003826436", name: "Telenet", currency: "EUR", yahooSymbol: null },
 ];
 
-// The seed's benchmarks plus the securities the tests trade.
 export async function freshDb() {
     const db = await migratedDb();
 
@@ -46,7 +45,6 @@ export async function insertRawImport(db: Db) {
             kind: "binck_ledger",
             sha256: "0".repeat(64),
             originalName: "test.csv",
-            uploadedAt: "2026-10-26T00:00:00.000Z",
             updatedAt: "2026-10-26T00:00:00.000Z",
             parserVersion: 1,
             status: "applied",
