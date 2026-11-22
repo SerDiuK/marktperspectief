@@ -1,4 +1,4 @@
-import { and, asc, gte, inArray, max } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, max, or } from "drizzle-orm";
 import type { Db } from "@/db/connect";
 import { portfolioDaily, priceDaily, theses } from "@/db/schema";
 import { addDays, type Range, rangeStart, ranges } from "@/lib/dates";
@@ -46,27 +46,23 @@ export async function loadHoldings(
     );
     const open = [...eur.books].filter(([, book]) => book.lots.length);
 
+    const security = new Map(securities.map((row) => [row.id, row]));
+    const securityOf = (instrumentId: string) => {
+        const row = security.get(instrumentId);
+
+        if (!row) throw new Error(`No instrument ${instrumentId}`);
+
+        return row;
+    };
+
     const closes = new Map<string, { date: string; close: number }[]>();
     const priced = [...open.map(([id]) => id), ...puts.filter((put) => put.open).map((put) => put.instrumentId)];
-    const [recent, latest, written] = await Promise.all([
-        db
-            .select({
-                instrumentId: priceDaily.instrumentId,
-                date: priceDaily.date,
-                close: priceDaily.close,
-            })
-            .from(priceDaily)
-            .where(
-                and(
-                    inArray(priceDaily.instrumentId, priced),
-                    lastDay ? gte(priceDaily.date, addDays(lastDay, -100)) : undefined,
-                ),
-            )
-            .orderBy(asc(priceDaily.instrumentId), asc(priceDaily.date)),
+    const quoted = priced.filter((id) => securityOf(id).yahooSymbol);
+    const [latest, written] = await Promise.all([
         db
             .select({ instrumentId: priceDaily.instrumentId, date: max(priceDaily.date) })
             .from(priceDaily)
-            .where(inArray(priceDaily.instrumentId, priced))
+            .where(inArray(priceDaily.instrumentId, quoted))
             .groupBy(priceDaily.instrumentId),
         db
             .select({
@@ -80,15 +76,26 @@ export async function loadHoldings(
             .orderBy(asc(theses.id)),
     ]);
     const current = new Map(written.map(({ instrumentId, ...thesis }) => [instrumentId, thesis]));
-
-    const security = new Map(securities.map((row) => [row.id, row]));
-    const securityOf = (instrumentId: string) => {
-        const row = security.get(instrumentId);
-
-        if (!row) throw new Error(`No instrument ${instrumentId}`);
-
-        return row;
-    };
+    const recent = latest.length
+        ? await db
+              .select({
+                  instrumentId: priceDaily.instrumentId,
+                  date: priceDaily.date,
+                  close: priceDaily.close,
+              })
+              .from(priceDaily)
+              .where(
+                  or(
+                      ...latest.map(({ instrumentId, date }) =>
+                          and(
+                              eq(priceDaily.instrumentId, instrumentId),
+                              gte(priceDaily.date, addDays(date ?? "", -100)),
+                          ),
+                      ),
+                  ),
+              )
+              .orderBy(asc(priceDaily.instrumentId), asc(priceDaily.date))
+        : [];
 
     for (const { instrumentId, date, close } of recent) {
         append(closes, instrumentId, { date, close });
@@ -276,7 +283,7 @@ export async function loadPortfolio(db: Db) {
 
         return {
             asOf: last.date,
-            since: trades[0].tradeDate,
+            since: trades[0]?.tradeDate ?? daily[0].date,
             valueEur: last.valueCents / 100,
             dayEur: (last.valueCents + last.outflowCents - previous.valueCents - last.inflowCents) / 100,
             dayPct: last.twrIndex / previous.twrIndex - 1,
