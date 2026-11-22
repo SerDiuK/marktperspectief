@@ -6,7 +6,6 @@
    for reference. Each chart colour keeps one meaning in every chart. */
 :root {
     color-scheme: dark;
-    --radius: 0rem;
 
     --background: oklch(0.19 0.004 250); /* #121416 */
     --foreground: oklch(0.965 0.003 250); /* #f2f4f5  16.7:1 */
@@ -76,15 +75,6 @@
     --text-note--line-height: 1.5;
 
     --blur-money: max(8px, 0.3em);
-
-    --radius-xs: var(--radius);
-    --radius-sm: var(--radius);
-    --radius-md: var(--radius);
-    --radius-lg: var(--radius);
-    --radius-xl: var(--radius);
-    --radius-2xl: var(--radius);
-    --radius-3xl: var(--radius);
-    --radius-4xl: var(--radius);
 }
 
 @layer base {

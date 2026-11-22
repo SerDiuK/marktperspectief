@@ -40,11 +40,6 @@ const benchmarks = { stoxx600: "Stoxx 600", sp500: "S&P 500" };
 
 type Benchmark = keyof typeof benchmarks;
 
-const move = {
-    from: "2021-02-23",
-    to: "2021-05-17",
-};
-
 const config = {
     valueEur: { color: "var(--chart-1)" },
     investedEur: { label: "Net invested", color: "var(--chart-3)" },
@@ -115,7 +110,7 @@ export function PortfolioChart({
     );
 
     const asOf = series.at(-1)?.date ?? "";
-    const { points, xTicks, xLabel, yTicks, yLabel, band, long } = useMemo(() => {
+    const { points, xTicks, xLabel, yTicks, yLabel, bands, long } = useMemo(() => {
         const start = rangeStart(range, asOf);
         const inRange = series.filter(({ date }) => date >= start);
         const step = Math.ceil(inRange.length / maxPoints);
@@ -152,6 +147,17 @@ export function PortfolioChart({
         const from = points[0]?.date ?? asOf;
         const xTicks = dateTicks(range, from, asOf);
         const labels = new Map(xTicks.map(({ t, label }) => [t, label]));
+        const bands: { x1: number; x2: number }[] = [];
+
+        inRange.forEach(({ date, investedEur }, index) => {
+            if (investedEur >= 0) return;
+
+            if (index > 0 && inRange[index - 1].investedEur < 0) {
+                bands[bands.length - 1].x2 = time(date);
+            } else {
+                bands.push({ x1: time(date), x2: time(date) });
+            }
+        });
 
         return {
             points,
@@ -163,13 +169,7 @@ export function PortfolioChart({
                 view === "value"
                     ? formatThousands
                     : (tick: number) => formatPercent(tick, { digits: whole ? 0 : 1, signed: true }),
-            band:
-                move.to > from
-                    ? {
-                          x1: time(move.from > from ? move.from : from),
-                          x2: time(move.to),
-                      }
-                    : null,
+            bands,
         };
     }, [series, range, asOf, view, benchmark, invested]);
 
@@ -256,15 +256,16 @@ export function PortfolioChart({
                             tickLine={false}
                             axisLine={false}
                         />
-                        {band && (
+                        {bands.map(({ x1, x2 }) => (
                             <ReferenceArea
-                                x1={band.x1}
-                                x2={band.x2}
+                                key={x1}
+                                x1={x1}
+                                x2={x2}
                                 fill="var(--annotation)"
                                 fillOpacity={1}
                                 ifOverflow="hidden"
                             />
-                        )}
+                        ))}
                         {view === "market" && <ReferenceLine y={0} stroke="var(--foreground)" strokeWidth={2} />}
                         <ChartTooltip
                             cursor={{ stroke: "var(--foreground)", strokeWidth: 1 }}
