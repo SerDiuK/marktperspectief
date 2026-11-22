@@ -53,6 +53,10 @@ const pillars = z
     .max(4)
     .describe("Two to four pillars; avoid needs none");
 const reason = z.string().min(1).describe("Why this type, or what changed since the current thesis");
+const enoughPillars = [
+    ({ type, pillars }: { type: string; pillars: unknown[] }) => type === "avoid" || pillars.length >= 2,
+    "A thesis needs two to four pillars; only avoid can have fewer",
+] as const;
 
 export const chatEntry = z.discriminatedUnion("chat", [
     z.object({
@@ -94,7 +98,7 @@ export const chatEntry = z.discriminatedUnion("chat", [
     z.object({
         chat: z.literal("thesis"),
         draftId,
-        thesis: z.object({ isin: z.string(), date: z.iso.date(), type, pillars, reason }),
+        thesis: z.object({ isin: z.string(), date: z.iso.date(), type, pillars, reason }).refine(...enoughPillars),
     }),
 ]);
 
@@ -112,7 +116,7 @@ export const transactionInput = z.object({
 
 export type TransactionInput = z.infer<typeof transactionInput>;
 
-export const thesisInput = z.object({ instrument, type, pillars, reason });
+export const thesisInput = z.object({ instrument, type, pillars, reason }).refine(...enoughPillars);
 
 export type ThesisInput = z.infer<typeof thesisInput>;
 

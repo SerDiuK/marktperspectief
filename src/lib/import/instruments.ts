@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
-import type { Db } from "@/db/connect";
+import type { Db, Tx } from "@/db/connect";
 import { instrumentAliases, instruments } from "@/db/schema";
 
 // Maps current and old ISINs to instrument ids.
-export async function isinIndex(db: Db) {
+export async function isinIndex(db: Db | Tx) {
     const [current, old] = await Promise.all([
         db.select({ isin: instruments.isin, id: instruments.id }).from(instruments),
         db
@@ -18,7 +18,7 @@ export async function isinIndex(db: Db) {
     return new Map([...old, ...current].map(({ isin, id }) => [isin, id]));
 }
 
-export async function optionCodeIndex(db: Db) {
+export async function optionCodeIndex(db: Db | Tx) {
     const rows = await db
         .select({
             code: instrumentAliases.value,

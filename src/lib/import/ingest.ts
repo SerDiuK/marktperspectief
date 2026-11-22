@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { and, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import { readSheet } from "read-excel-file/node";
-import type { Db } from "@/db/connect";
+import type { Db, Tx } from "@/db/connect";
 import { getEffectiveTrades, getPendingChatTrades } from "@/db/ledger";
 import {
     corporateActions,
@@ -121,7 +121,7 @@ function unseen<T extends { externalKey: string }>(rows: T[], known: { key: stri
 }
 
 async function supersedes(
-    db: Db,
+    db: Tx,
     trades: Parameters<typeof planSupersede>[0],
     covered: Pick<ParseResult["trades"][number], "source" | "broker" | "tradeDate">[],
 ) {
@@ -148,7 +148,7 @@ async function supersedes(
 }
 
 async function oversold(
-    db: Db,
+    db: Tx,
     added: Pick<
         typeof transactions.$inferInsert,
         "source" | "externalKey" | "instrumentId" | "side" | "tradeDate" | "tradeTime" | "quantity"
@@ -182,8 +182,8 @@ async function oversold(
     }
 }
 
-async function applyRaw(
-    db: Db,
+async function apply(
+    db: Tx,
     raw: {
         kind: RawKind;
         parsed: ParseResult;
@@ -199,9 +199,7 @@ async function applyRaw(
         await Promise.all([
             isinIndex(db),
             optionCodeIndex(db),
-            db
-                .select({ id: instruments.id, isin: instruments.isin, yahooSymbol: instruments.yahooSymbol })
-                .from(instruments),
+            db.select({ id: instruments.id, yahooSymbol: instruments.yahooSymbol }).from(instruments),
             db
                 .select({ key: transactions.externalKey })
                 .from(transactions)
@@ -229,14 +227,16 @@ async function applyRaw(
                 ),
         ]);
     const filed = new Set(parsed.instruments.map(({ id }) => id));
-    const clashes = parsed.instruments.flatMap(({ id, isin, yahooSymbol }) =>
-        stored.flatMap((row) => [
-            ...(row.id !== id && row.isin === isin ? [`ISIN ${isin} already belongs to ${row.id}`] : []),
-            ...(row.id !== id && yahooSymbol && row.yahooSymbol === yahooSymbol
+    const clashes = parsed.instruments.flatMap(({ id, isin, yahooSymbol }) => [
+        ...(instrumentIds.has(isin) && instrumentIds.get(isin) !== id
+            ? [`ISIN ${isin} already belongs to ${instrumentIds.get(isin)}`]
+            : []),
+        ...stored.flatMap((row) =>
+            row.id !== id && yahooSymbol && row.yahooSymbol === yahooSymbol
                 ? [`Yahoo symbol ${yahooSymbol} already belongs to ${row.id}`]
-                : []),
-        ]),
-    );
+                : [],
+        ),
+    ]);
     const known = new Set([...filed, ...stored.map(({ id }) => id)]);
     const orphans = [...parsed.aliases, ...parsed.corporateActions].flatMap(({ instrumentId }) =>
         known.has(instrumentId) ? [] : [`Unknown instrument ${instrumentId}`],
@@ -384,7 +384,7 @@ async function applyRaw(
     const chatTrade = (externalKey: string) =>
         and(eq(transactions.source, "chat"), eq(transactions.externalKey, externalKey));
 
-    await db.batch([
+    for (const statement of [
         upsert,
         ...parsed.instruments.map((row) =>
             db.insert(instruments).values(row).onConflictDoUpdate({ target: instruments.id, set: row }),
@@ -441,9 +441,15 @@ async function applyRaw(
                   ),
               ]
             : []),
-    ]);
+    ]) {
+        await statement;
+    }
 
     return result;
+}
+
+function applyRaw(db: Db, raw: Parameters<typeof apply>[1]) {
+    return db.transaction((tx) => apply(tx, raw));
 }
 
 export async function ingestRaw(

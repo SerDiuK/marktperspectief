@@ -3,7 +3,7 @@ import { getEffectiveTrades } from "@/db/ledger";
 import { priceDaily, theses, transactions } from "@/db/schema";
 import { freshDb } from "@/db/test-db";
 import { loadHolding } from "@/lib/portfolio/holding";
-import type { ThesisInput } from "@/lib/schemas";
+import { type ThesisInput, thesisInput } from "@/lib/schemas";
 import {
     addInstrument,
     addTransaction,
@@ -112,9 +112,7 @@ it("saves a thesis only once confirmed, makes the newest one the holding's curre
     await confirmThesis(database, await propose({ ...bargain, type: "compounder", reason: "Its moat held" }), now);
 
     expect((await loadHolding(database, "exor"))?.position?.thesis).toMatchObject({ type: "compounder" });
-    await expect(proposeThesis(database, { ...bargain, pillars: bargain.pillars.slice(1) }, now)).rejects.toThrow(
-        "two to four pillars",
-    );
+    expect(thesisInput.safeParse({ ...bargain, pillars: bargain.pillars.slice(1) }).success).toBe(false);
     await expect(confirmThesis(database, await draft(database), now)).rejects.toThrow("not a thesis");
 });
 

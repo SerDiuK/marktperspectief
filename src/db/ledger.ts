@@ -1,8 +1,8 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
-import type { Db } from "./connect";
+import type { Db, Tx } from "./connect";
 import { optionTrades, transactions } from "./schema";
 
-export function getEffectiveTrades(db: Db) {
+export function getEffectiveTrades(db: Db | Tx) {
     return db
         .select()
         .from(transactions)
@@ -10,7 +10,7 @@ export function getEffectiveTrades(db: Db) {
         .orderBy(asc(transactions.tradeDate), asc(transactions.tradeTime), asc(transactions.id));
 }
 
-export function getPendingChatTrades(db: Db) {
+export function getPendingChatTrades(db: Db | Tx) {
     return db
         .select()
         .from(transactions)
