@@ -3,9 +3,10 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { getEffectiveTrades } from "@/db/ledger";
 import { corporateActions, optionTrades, rawImports, transactions } from "@/db/schema";
 import { freshDb } from "@/db/test-db";
+import { loadLedger } from "@/lib/portfolio/ledger";
 import { ingestRaw, rebuild } from "./ingest";
 import { BINCK_HEADER } from "./parsers/binck";
-import { DEGIRO_TRANSACTIONS_HEADER } from "./parsers/degiro";
+import { DEGIRO_ACCOUNT_HEADER, DEGIRO_TRANSACTIONS_HEADER } from "./parsers/degiro";
 import { getRaw, listRaw, putRaw } from "./raw-store";
 
 vi.mock("./raw-store", () => ({ putRaw: vi.fn(), listRaw: vi.fn(), getRaw: vi.fn() }));
@@ -201,6 +202,29 @@ it("adds only the new trades of an overlapping DEGIRO export", async () => {
 
     expect(result.report.rows).toMatchObject({ trades: 1, duplicates: 1 });
     expect(await db.$count(transactions)).toBe(2);
+});
+
+it("adds a dividend's reversal and rebooking from a later, overlapping DEGIRO statement to the lines it already has", async () => {
+    const db = await freshDb();
+    const statement = (lines: string[]) => ({
+        name: "Account.csv",
+        bytes: new TextEncoder().encode([DEGIRO_ACCOUNT_HEADER, ...lines].join("\n")),
+    });
+    const paid = [
+        '08-05-2026,07:15,07-05-2026,LVMH MOET HENNESSY,FR0000121014,Retención del dividendo,,EUR,"-25,00",EUR,"60,00",',
+        '08-05-2026,07:15,07-05-2026,LVMH MOET HENNESSY,FR0000121014,Dividendo,,EUR,"100,00",EUR,"85,00",',
+    ];
+    const rebooked = [
+        '05-06-2026,13:49,07-05-2026,LVMH MOET HENNESSY,FR0000121014,Retención del dividendo,,EUR,"-30,00",EUR,"175,00",',
+        '05-06-2026,13:49,07-05-2026,LVMH MOET HENNESSY,FR0000121014,Dividendo,,EUR,"120,00",EUR,"205,00",',
+        '05-06-2026,13:48,07-05-2026,LVMH MOET HENNESSY,FR0000121014,Retención del dividendo,,EUR,"25,00",EUR,"85,00",',
+        '05-06-2026,13:48,07-05-2026,LVMH MOET HENNESSY,FR0000121014,Dividendo,,EUR,"-100,00",EUR,"60,00",',
+    ];
+
+    await ingestRaw(db, statement(paid));
+    await ingestRaw(db, statement([...rebooked, ...paid]));
+
+    expect((await loadLedger(db)).incomeFlows).toEqual([{ date: "2026-05-07", value: 12000 }]);
 });
 
 it("adds a DEGIRO export's puts once, on their underlying", async () => {

@@ -119,6 +119,44 @@ it("grosses up a net dividend from Yahoo's dividend and the shares held at that 
     expect(incomeFlows.map(({ value }) => value)).toEqual([65000, 1000, -200]);
 });
 
+it("sums a payment's lines before grossing it up: a correction joins its net dividend, a full reversal leaves nothing, a fully withheld one keeps its gross, and a payout with its gross stays apart", async () => {
+    const db = await freshDb();
+    const rawImportId = await insertRawImport(db);
+
+    await db.insert(transactions).values({
+        ...trade,
+        externalKey: "1",
+        rawImportId,
+        side: "buy",
+        tradeDate: "2023-01-10",
+        quantity: 100,
+        price: 90,
+    });
+    await db.insert(dividendEvents).values([
+        { instrumentId: "kbc", exDate: "2025-05-09", amount: 5 },
+        { instrumentId: "kbc", exDate: "2025-11-07", amount: 0.6 },
+    ]);
+
+    const line = { ...trade, rawImportId, kind: "dividend" } as const;
+
+    await db.insert(income).values([
+        { ...line, externalKey: "a", payDate: "2025-05-13", amount: 350 },
+        { ...line, externalKey: "b", payDate: "2025-05-13", amount: 0.05 },
+        { ...line, externalKey: "c", payDate: "2025-05-13", amount: 12, gross: 12 },
+        { ...line, externalKey: "d", payDate: "2025-11-12", amount: 45.1 },
+        { ...line, externalKey: "e", payDate: "2025-11-12", amount: 0.2 },
+        { ...line, externalKey: "f", payDate: "2025-11-12", amount: -45.3 },
+        { ...line, externalKey: "g", payDate: "2025-12-01", amount: 8, gross: 8 },
+        { ...line, externalKey: "h", payDate: "2025-12-01", amount: -8, gross: 0 },
+    ]);
+
+    expect((await loadLedger(db)).incomeFlows).toEqual([
+        { date: "2025-05-13", value: 50000 },
+        { date: "2025-05-13", value: 1200 },
+        { date: "2025-12-01", value: 800 },
+    ]);
+});
+
 it("sums the overview: realised after a part sale, a day's change without that day's buy, total return and a year of dividends", async () => {
     const db = await freshDb();
 
