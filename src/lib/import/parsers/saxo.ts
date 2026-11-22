@@ -27,15 +27,13 @@ const isoDate = (date: Date) => date.toISOString().slice(0, 10);
 export function parseSaxoTransactions(rows: unknown[][]): ParseResult {
     const result = emptyParse();
     const occurrences = new Map<string, number>();
-    const cash = new Map<
-        string,
-        {
-            line: (typeof cashLines)[string];
-            date: string;
-            isin: string | null;
-            amount: number;
-        }
-    >();
+    const keyed = (key: string) => {
+        const occurrence = occurrences.get(key) ?? 0;
+
+        occurrences.set(key, occurrence + 1);
+
+        return `${key}:${occurrence}`;
+    };
 
     rows.slice(1).forEach((cells, index) => {
         const [, date, valueDate, type, , isin, , , , action, booked, orderId] = cells;
@@ -45,22 +43,40 @@ export function parseSaxoTransactions(rows: unknown[][]): ParseResult {
         if (type !== "Transactie") {
             const line = cashLines[String(action)];
 
-            if (!line || !(valueDate instanceof Date)) {
+            if (!line || !(date instanceof Date) || !(valueDate instanceof Date)) {
                 result.errors.push(`Row ${index + 2}: unknown line "${action}"`);
 
                 return;
             }
 
-            const day = isoDate(valueDate);
-            const key = `${isin || ""}|${day}|${action}`;
-            const amount = (cash.get(key)?.amount ?? 0) + Number(booked);
+            const amount = Number(booked);
 
-            cash.set(key, {
-                line,
-                date: day,
-                isin: isin ? String(isin) : null,
-                amount,
-            });
+            if (!amount) return;
+
+            const payDate = isoDate(valueDate);
+            const externalKey = keyed(`${isoDate(date)}|${payDate}|${isin || ""}|${action}|${amount}`);
+
+            if (line === "fee") {
+                result.fees.push({
+                    broker: "saxo",
+                    externalKey,
+                    date: payDate,
+                    amount: -amount,
+                    currency: "EUR",
+                });
+            } else {
+                result.income.push({
+                    source: "saxo",
+                    broker: "saxo",
+                    externalKey,
+                    isin: isin ? String(isin) : null,
+                    kind: "dividend",
+                    payDate,
+                    amount,
+                    gross: line === "dividend" ? amount : null,
+                    currency: "EUR",
+                });
+            }
 
             return;
         }
@@ -78,17 +94,12 @@ export function parseSaxoTransactions(rows: unknown[][]): ParseResult {
         const quantity = Math.abs(Number(quantityText));
         const price = Number(priceText);
         const tradeDate = isoDate(date);
-        const key = `${orderId}|${tradeDate}|${isin}|${quantity}|${price}`;
-        const occurrence = occurrences.get(key) ?? 0;
-
-        occurrences.set(key, occurrence + 1);
-
         const total = Math.abs(Number(booked));
 
         result.trades.push({
             source: "saxo",
             broker: "saxo",
-            externalKey: `${key}:${occurrence}`,
+            externalKey: keyed(`${orderId}|${tradeDate}|${isin}|${quantity}|${price}`),
             isin: String(isin),
             side,
             tradeDate,
@@ -101,34 +112,6 @@ export function parseSaxoTransactions(rows: unknown[][]): ParseResult {
             orderRef: String(orderId),
         });
     });
-
-    for (const [externalKey, { line, date, isin, amount }] of cash) {
-        if (!amount) continue;
-
-        const rounded = Math.round(amount * 100) / 100;
-
-        if (line === "net dividend" || line === "dividend") {
-            result.income.push({
-                source: "saxo",
-                broker: "saxo",
-                externalKey,
-                isin,
-                kind: "dividend",
-                payDate: date,
-                amount: rounded,
-                gross: line === "dividend" ? rounded : null,
-                currency: "EUR",
-            });
-        } else {
-            result.fees.push({
-                broker: "saxo",
-                externalKey,
-                date,
-                amount: -rounded,
-                currency: "EUR",
-            });
-        }
-    }
 
     return result;
 }

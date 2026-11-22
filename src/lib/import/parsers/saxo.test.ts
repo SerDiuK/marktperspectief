@@ -60,7 +60,7 @@ it("keys each trade the same way whatever order the export lists it in", () => {
     expect(reversed.size).toBe(4);
 });
 
-it("books Saxo's dividends on their value date with their corrections, and fractions and interest as fees", () => {
+it("books each of Saxo's cash lines on its value date, a cash dividend as net, and fractions and interest as fees", () => {
     const { income, fees, errors } = parseSaxoTransactions([
         rows[0],
         row("2024-06-12", "Corporate action", "FR0000121014", "Cashdividend", 96, ""),
@@ -73,7 +73,8 @@ it("books Saxo's dividends on their value date with their corrections, and fract
     ]);
 
     expect(income).toMatchObject([
-        { payDate: "2024-06-12", amount: 96.05, gross: null },
+        { payDate: "2024-06-12", amount: 96, gross: null },
+        { payDate: "2024-06-12", amount: 0.05, gross: null },
         { payDate: "2022-10-04", amount: 9.6, gross: 9.6 },
     ]);
     expect(fees).toMatchObject([{ amount: -1.74 }, { amount: 4.12 }]);

@@ -46,7 +46,7 @@ const textFormats = [
         parse: parseDegiroAccount,
     },
 ] as const;
-const parserVersion = 3;
+const parserVersion = 4;
 
 function blobPath(kind: RawKind, sha256: string, name: string) {
     const env = process.env.VERCEL_ENV ?? "development";
