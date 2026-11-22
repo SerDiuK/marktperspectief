@@ -210,7 +210,7 @@ export function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
                             {row.unrealisedEur === null || row.unrealisedPct === null ? (
                                 "—"
                             ) : (
-                                <>
+                                <Change value={row.unrealisedEur}>
                                     <Money>
                                         {formatEur(row.unrealisedEur, {
                                             digits: 0,
@@ -218,13 +218,11 @@ export function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
                                         })}
                                     </Money>
                                     <span className="block text-xs font-semibold">
-                                        <Change value={row.unrealisedPct}>
-                                            {formatPercent(row.unrealisedPct, {
-                                                signed: true,
-                                            })}
-                                        </Change>
+                                        {formatPercent(row.unrealisedPct, {
+                                            signed: true,
+                                        })}
                                     </span>
-                                </>
+                                </Change>
                             )}
                         </TableCell>
                         <TableCell>

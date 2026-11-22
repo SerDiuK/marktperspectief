@@ -39,22 +39,22 @@ export function ClosedPositions({ closed }: { closed: Portfolio["closed"] }) {
                                 {formatMonthRange(period.from, period.to)}
                             </TableCell>
                             <TableCell className="text-right">
-                                <Money>
-                                    {formatEur(period.realisedEur, {
-                                        digits: 0,
-                                        signed: true,
-                                    })}
-                                </Money>
-                                {period.realisedPct !== null && (
-                                    <span className="block text-xs font-semibold">
-                                        <Change value={period.realisedPct}>
+                                <Change value={period.realisedEur}>
+                                    <Money>
+                                        {formatEur(period.realisedEur, {
+                                            digits: 0,
+                                            signed: true,
+                                        })}
+                                    </Money>
+                                    {period.realisedPct !== null && (
+                                        <span className="block text-xs font-semibold">
                                             {formatPercent(period.realisedPct, {
                                                 digits: 0,
                                                 signed: true,
                                             })}
-                                        </Change>
-                                    </span>
-                                )}
+                                        </span>
+                                    )}
+                                </Change>
                             </TableCell>
                         </TableRow>
                     ))}
