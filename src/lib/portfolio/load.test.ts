@@ -119,7 +119,7 @@ it("grosses up a net dividend from Yahoo's dividend and the shares held at that 
     expect(incomeFlows.map(({ value }) => value)).toEqual([65000, 1000, -200]);
 });
 
-it("sums a payment's lines before grossing it up: a correction joins its net dividend, a full reversal leaves nothing, and a payout with its gross stays apart", async () => {
+it("sums a payment's lines before grossing it up: a correction joins its net dividend, a full reversal leaves nothing, a fully withheld one keeps its gross, and a payout with its gross stays apart", async () => {
     const db = await freshDb();
     const rawImportId = await insertRawImport(db);
 
@@ -146,11 +146,14 @@ it("sums a payment's lines before grossing it up: a correction joins its net div
         { ...line, externalKey: "d", payDate: "2025-11-12", amount: 45.1 },
         { ...line, externalKey: "e", payDate: "2025-11-12", amount: 0.2 },
         { ...line, externalKey: "f", payDate: "2025-11-12", amount: -45.3 },
+        { ...line, externalKey: "g", payDate: "2025-12-01", amount: 8, gross: 8 },
+        { ...line, externalKey: "h", payDate: "2025-12-01", amount: -8, gross: 0 },
     ]);
 
     expect((await loadLedger(db)).incomeFlows).toEqual([
         { date: "2025-05-13", value: 50000 },
         { date: "2025-05-13", value: 1200 },
+        { date: "2025-12-01", value: 800 },
     ]);
 });
 

@@ -51,13 +51,18 @@ it("maps Saxo's trades and transfers in, and rejects a trade in another currency
     expect(errors).toEqual([expect.stringMatching(/^Row 7\b/)]);
 });
 
-it("keys each trade the same way whatever order the export lists it in", () => {
-    const keyed = (input: unknown[][]) =>
-        new Map(parseSaxoTransactions(input).trades.map((trade) => [trade.externalKey, trade.isin]));
-    const reversed = keyed([rows[0], ...rows.slice(1).reverse()]);
+it("keys each trade and cash line the same way whatever order the export lists it in, identical ones apart", () => {
+    const interest = row("2025-01-31", "Cashbedrag", "", "Debetrente, creditrente en/of bewaarrente", -4.12, "");
+    const keyed = (input: unknown[][]) => {
+        const { trades, income, fees } = parseSaxoTransactions(input);
 
-    expect(reversed).toEqual(keyed(rows));
-    expect(reversed.size).toBe(4);
+        return new Set([...trades, ...income, ...fees].map(({ externalKey }) => externalKey));
+    };
+    const lines = [...rows, interest, interest];
+    const reversed = keyed([lines[0], ...lines.slice(1).reverse()]);
+
+    expect(reversed).toEqual(keyed(lines));
+    expect(reversed.size).toBe(7);
 });
 
 it("books each of Saxo's cash lines on its value date, a cash dividend as net, and fractions and interest as fees", () => {

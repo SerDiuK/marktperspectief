@@ -232,7 +232,7 @@ export function parseDegiroAccount(text: string): ParseResult {
 
         rows.push({
             line: index + 2,
-            date,
+            date: isoDate(date),
             time,
             valueDate: isoDate(valueDate),
             isin,
@@ -268,7 +268,7 @@ export function parseDegiroAccount(text: string): ParseResult {
         if (!change) continue;
 
         const externalKey = lineKey(
-            `${row.date}|${row.time}|${row.valueDate}|${row.isin}|${row.description}|${currency}|${row.change}`,
+            `${row.date}|${row.time}|${row.valueDate}|${row.isin}|${row.description}|${currency}|${change}`,
         );
         const origin = { source: "degiro", broker: "degiro", externalKey } as const;
 
