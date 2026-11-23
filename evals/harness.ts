@@ -8,57 +8,59 @@ import { addDays, ownerDate } from "@/lib/dates";
 import { addTransaction, confirmTransaction } from "@/mcp/chat";
 import { buildServer } from "@/mcp/server";
 
-// card: a client that shows MCP Apps, like claude.ai, so the confirm tools are the card's alone.
-// chat: a client without them, like Claude Code, that lists every tool.
-export type Host = "card" | "chat";
-
 export type Call = { turn: number; name: string; input: Record<string, unknown>; result: CallToolResult };
 
 export type Run = { db: Db; calls: Call[]; replies: string[] };
 
 export type Case = {
     name: string;
-    host: Host;
+    host: "card" | "chat";
     turns: string[];
     check: (run: Run) => Promise<string[]> | string[];
 };
 
 const anthropic = new Anthropic();
-const model = process.env.EVAL_MODEL ?? "claude-sonnet-5-5";
+
+export const model = process.env.EVAL_MODEL ?? "claude-sonnet-5-5";
 
 const offline = new Set(["refresh_prices"]);
 
-// The model's today and the server's clock alike: Tuesday to Friday, so neither a trade today nor one yesterday falls
-// on a weekend, which the model would ask about.
-function today() {
-    let date = ownerDate(new Date());
+function lastTuesdayToFriday(date: string) {
+    let day = date;
 
-    while (![2, 3, 4, 5].includes(new Date(`${date}T00:00:00Z`).getUTCDay())) date = addDays(date, -1);
+    while (![2, 3, 4, 5].includes(new Date(`${day}T00:00:00Z`).getUTCDay())) day = addDays(day, -1);
 
-    return date;
+    return day;
 }
 
-const now = () => new Date(`${today()}T12:00:00Z`);
+const today = lastTuesdayToFriday(ownerDate(new Date()));
+const now = () => new Date(`${today}T12:00:00Z`);
 
-// An investor with Exor at DEGIRO and Heineken at Saxo, priced on their buys and yesterday.
+const seeds = [
+    { instrument: "EXO", broker: "degiro", quantity: 40, price: 31.5, tradeDate: addDays(today, -28) },
+    { instrument: "HEIA", broker: "saxo", quantity: 25, price: 80, tradeDate: addDays(today, -56) },
+] as const;
+
+export const seededTrades = seeds.length;
+
 async function portfolio() {
     const db = await freshDb();
 
     await db.insert(priceDaily).values([
-        { instrumentId: "heineken", date: addDays(today(), -60), close: 80 },
-        { instrumentId: "exor", date: addDays(today(), -30), close: 31.5 },
-        { instrumentId: "exor", date: addDays(today(), -1), close: 33.2 },
-        { instrumentId: "heineken", date: addDays(today(), -1), close: 78.4 },
+        { instrumentId: "heineken", date: addDays(today, -56), close: 80 },
+        { instrumentId: "exor", date: addDays(today, -28), close: 31.5 },
+        { instrumentId: "exor", date: addDays(today, -1), close: 33.2 },
+        { instrumentId: "heineken", date: addDays(today, -1), close: 78.4 },
     ]);
 
-    for (const trade of [
-        { instrument: "EXO", broker: "degiro", quantity: 40, price: 31.5, tradeDate: addDays(today(), -30) },
-        { instrument: "HEIA", broker: "saxo", quantity: 25, price: 80, tradeDate: addDays(today(), -60) },
-    ] as const) {
+    for (const trade of seeds) {
         const preview = await addTransaction(db, { ...trade, side: "buy", feesEur: 2 }, now());
 
         if (!("draftId" in preview)) throw new Error(`No draft for ${trade.instrument}`);
-        await confirmTransaction(db, preview.draftId, now());
+
+        const { status } = await confirmTransaction(db, preview.draftId, now());
+
+        if (status !== "applied") throw new Error(`Seeding ${trade.instrument} was ${status}`);
     }
 
     return db;
@@ -69,7 +71,7 @@ const text = (result: CallToolResult) =>
 
 export async function run({ host, turns }: Case): Promise<Run> {
     const db = await portfolio();
-    const server = buildServer(db, now);
+    const server = buildServer(db, { modelConfirms: host === "chat", now });
     const client = new Client({ name: `eval-${host}`, version: "1.0.0" });
     const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
 
@@ -79,7 +81,7 @@ export async function run({ host, turns }: Case): Promise<Run> {
     const listed = (await client.listTools()).tools.filter(({ name, _meta }) => {
         const visibility = (_meta?.ui as { visibility?: string[] } | undefined)?.visibility ?? ["model", "app"];
 
-        return !offline.has(name) && (host === "chat" || visibility.includes("model"));
+        return !offline.has(name) && visibility.includes("model");
     });
     const tools: Tool[] = listed.map(({ name, description, inputSchema }, index) => ({
         name,
@@ -88,7 +90,7 @@ export async function run({ host, turns }: Case): Promise<Run> {
         ...(index === listed.length - 1 && { cache_control: { type: "ephemeral" as const } }),
     }));
     const system = [
-        `You are Claude. The user has connected Marktperspectief, their portfolio app, as a connector. Today is ${today()}.`,
+        `You are Claude. The user has connected Marktperspectief, their portfolio app, as a connector. Today is ${today}.`,
         client.getInstructions() ?? "",
     ].join("\n\n");
     const messages: MessageParam[] = [];
@@ -148,5 +150,3 @@ export function confirmedOnlyAfterAnswer({ calls }: Run) {
         })
         .map(({ name, turn }) => `${name} in turn ${turn + 1} confirmed a draft the user hadn't answered`);
 }
-
-export { model };

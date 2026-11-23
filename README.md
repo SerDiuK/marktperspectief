@@ -100,7 +100,7 @@ Vercel cron calls `/api/cron/daily` at 22:00 and 05:00 UTC to fetch prices and r
 - **claude.ai** connects to `https://<your domain>/api/mcp` as a custom connector. Choose "Use Claude's published identity" rather than "Register automatically", then sign in with your passkey and allow access.
 - **Claude Code** in a checkout starts the stdio MCP server from `.mcp.json`, on the local database.
 
-A trade, a thesis or a new security told in chat comes back as a preview, kept as a draft for 30 minutes. On claude.ai the preview is a card, an [MCP App](https://github.com/modelcontextprotocol/ext-apps), and only its Confirm button saves it: the confirm tools are visible to the card alone, so Claude can't save a draft for you. A client that doesn't show MCP Apps, like Claude Code in a terminal, lists every tool, so there Claude confirms once you've agreed to the preview in a message of your own. Keep `undo_chat_transaction` asking for approval rather than **Always allow**.
+A trade, a thesis or a new security told in chat comes back as a preview, kept as a draft for 30 minutes. On claude.ai the preview is a card, an [MCP App](https://github.com/modelcontextprotocol/ext-apps), and only its Confirm button saves it: the confirm tools are visible to the card alone, so Claude can't save a draft for you. Claude Code shows no card, so its stdio server lets Claude confirm once you've agreed to the preview in a message of your own; through the claude.ai connector, Claude Code can read the portfolio but not save. Keep `undo_chat_transaction` asking for approval rather than **Always allow**.
 
 ### Connect Claude to the demo
 

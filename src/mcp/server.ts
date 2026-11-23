@@ -20,18 +20,24 @@ import { draftCard, draftCardUri } from "./draft-card";
 
 const json = (value: Record<string, unknown>) => ({
     content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
-    structuredContent: value,
 });
 
-const withCard = { ui: { resourceUri: draftCardUri } };
-const cardOnly = { ui: { visibility: ["app" as const] } };
+const forCard = (value: Record<string, unknown>) => ({ ...json(value), structuredContent: value });
 
-export function buildServer(db: Db, now = () => new Date()) {
+const withCard = { ui: { resourceUri: draftCardUri } };
+
+export function buildServer(db: Db, { modelConfirms = false, now = () => new Date() } = {}) {
+    const confirmMeta = { ui: { visibility: modelConfirms ? ["model" as const, "app" as const] : ["app" as const] } };
     const server = new McpServer(
         { name: "marktperspectief", version: "0.1.0" },
         {
-            instructions:
-                "Amounts are in EUR at ECB rates unless a field names another currency. A trade, a thesis or a new instrument is recorded in two steps: add_transaction, propose_thesis or add_instrument returns a preview and keeps it as a draft, and nothing is saved until the user confirms that draft. If confirm_transaction, confirm_thesis and confirm_instrument are among your tools, there is no card: call the confirm tool once the user has agreed to that preview in a message of their own. If they aren't, the preview shows as a card and only its Confirm button saves it, so ask the user to press it. Mention every warning in the preview.",
+            instructions: [
+                "Amounts are in EUR at ECB rates unless a field names another currency. A trade, a thesis or a new instrument is recorded in two steps: add_transaction, propose_thesis or add_instrument returns a preview and keeps it as a draft, and nothing is saved until the user confirms that draft.",
+                modelConfirms
+                    ? "Call confirm_transaction, confirm_thesis or confirm_instrument only after the user has agreed to that preview in a message of their own."
+                    : "The preview shows as a card and only its Confirm button saves it, so ask the user to press it.",
+                "Mention every warning in the preview.",
+            ].join(" "),
         },
     );
 
@@ -91,7 +97,7 @@ export function buildServer(db: Db, now = () => new Date()) {
             inputSchema: transactionInput,
             _meta: withCard,
         },
-        async (input) => json({ kind: "trade", ...(await addTransaction(db, input, now())) }),
+        async (input) => forCard({ kind: "trade", ...(await addTransaction(db, input, now())) }),
     );
 
     registerAppTool(
@@ -102,9 +108,9 @@ export function buildServer(db: Db, now = () => new Date()) {
             description:
                 "Records a draft from add_transaction in the ledger. Call it only after the user has agreed to the preview. The broker's next export replaces the trade with its own row.",
             inputSchema: draftInput,
-            _meta: cardOnly,
+            _meta: confirmMeta,
         },
-        async ({ draftId }) => json(await confirmTransaction(db, draftId, now())),
+        async ({ draftId }) => forCard(await confirmTransaction(db, draftId, now())),
     );
 
     server.registerTool(
@@ -129,7 +135,7 @@ export function buildServer(db: Db, now = () => new Date()) {
             inputSchema: thesisInput,
             _meta: withCard,
         },
-        async (input) => json({ kind: "thesis", ...(await proposeThesis(db, input, now())) }),
+        async (input) => forCard({ kind: "thesis", ...(await proposeThesis(db, input, now())) }),
     );
 
     registerAppTool(
@@ -140,9 +146,9 @@ export function buildServer(db: Db, now = () => new Date()) {
             description:
                 "Saves a draft from propose_thesis as the holding's current thesis. Call it only after the user has agreed to the preview.",
             inputSchema: draftInput,
-            _meta: cardOnly,
+            _meta: confirmMeta,
         },
-        async ({ draftId }) => json(await confirmThesis(db, draftId, now())),
+        async ({ draftId }) => forCard(await confirmThesis(db, draftId, now())),
     );
 
     registerAppTool(
@@ -155,7 +161,7 @@ export function buildServer(db: Db, now = () => new Date()) {
             inputSchema: instrumentInput,
             _meta: withCard,
         },
-        async (input) => json({ kind: "instrument", ...(await addInstrument(db, input, now())) }),
+        async (input) => forCard({ kind: "instrument", ...(await addInstrument(db, input, now())) }),
     );
 
     registerAppTool(
@@ -166,9 +172,9 @@ export function buildServer(db: Db, now = () => new Date()) {
             description:
                 "Saves a draft from add_instrument. Call it only after the user has agreed to the preview, then refresh_prices to fetch its closes.",
             inputSchema: draftInput,
-            _meta: cardOnly,
+            _meta: confirmMeta,
         },
-        async ({ draftId }) => json(await confirmInstrument(db, draftId, now())),
+        async ({ draftId }) => forCard(await confirmInstrument(db, draftId, now())),
     );
 
     registerAppResource(

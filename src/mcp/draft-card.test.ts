@@ -3,7 +3,7 @@ import { AppBridge } from "@modelcontextprotocol/ext-apps/app-bridge";
 import { JSDOM } from "jsdom";
 import { expect, it, vi } from "vitest";
 import { getEffectiveTrades } from "@/db/ledger";
-import { priceDaily } from "@/db/schema";
+import { priceDaily, theses } from "@/db/schema";
 import { freshDb } from "@/db/test-db";
 import { draftCard, draftCardUri } from "./draft-card";
 import { buildServer } from "./server";
@@ -42,7 +42,7 @@ function frame() {
     };
 }
 
-it("keeps the confirm tools from the model and saves a trade only when the card's Confirm button is pressed", async () => {
+it("keeps the confirm tools from the model and saves a trade, then a thesis, only through the card's Confirm button", async () => {
     const database = await freshDb();
 
     await database.insert(priceDaily).values({ instrumentId: "exor", date: "2026-10-29", close: 33.2 });
@@ -99,7 +99,7 @@ it("keeps the confirm tools from the model and saves a trade only when the card'
     const card = () => view.document.getElementById("card")?.textContent;
 
     expect(card()).toContain("Exor");
-    expect(card()).toContain("more than 15% from the close");
+    expect(card()).toContain((preview.structuredContent as { warnings: string[] }).warnings[0]);
     expect(await getEffectiveTrades(database)).toHaveLength(0);
 
     view.document.querySelector<HTMLButtonElement>("button.primary")?.click();
@@ -107,4 +107,25 @@ it("keeps the confirm tools from the model and saves a trade only when the card'
 
     expect(await getEffectiveTrades(database)).toHaveLength(1);
     expect(told).toEqual([{ type: "text", text: expect.stringContaining("pressed Confirm") }]);
+
+    const thesis = await client.callTool({
+        name: "propose_thesis",
+        arguments: {
+            instrument: "EXO",
+            type: "bargain",
+            pillars: [
+                { claim: "The discount to NAV closes", wrongIf: "The buybacks stop" },
+                { claim: "Ferrari keeps compounding", wrongIf: "Its margin falls below 25%" },
+            ],
+            reason: "Cheap against its NAV",
+        },
+    });
+
+    await bridge.sendToolResult(thesis);
+    await vi.waitFor(() => expect(card()).toContain("Thesis"));
+
+    view.document.querySelector<HTMLButtonElement>("button.primary")?.click();
+    await vi.waitFor(() => expect(card()).toContain("Saved."));
+
+    expect(await database.$count(theses)).toBe(1);
 });

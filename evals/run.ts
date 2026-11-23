@@ -38,9 +38,13 @@ async function pool<T>(jobs: (() => Promise<T>)[], size: number) {
 }
 
 async function main() {
+    delete process.env.BLOB_READ_WRITE_TOKEN;
     process.chdir(await mkdtemp(join(tmpdir(), "marktperspectief-evals-")));
 
     const selected = cases.filter(({ name }) => !only || name.includes(only));
+
+    if (selected.length === 0) throw new Error(`No case matches ${only}`);
+
     const outcomes = await pool(
         selected.flatMap((evalCase) => Array.from({ length: runs }, () => () => attempt(evalCase))),
         4,

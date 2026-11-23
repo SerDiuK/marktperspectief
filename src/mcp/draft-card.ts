@@ -38,7 +38,6 @@ button:disabled { opacity: 0.5; cursor: default; }
 (() => {
     const protocolVersion = "2026-01-26";
     const confirmTools = { trade: "confirm_transaction", thesis: "confirm_thesis", instrument: "confirm_instrument" };
-    const nouns = { trade: "trade", thesis: "thesis", instrument: "instrument" };
     const brokers = { degiro: "DEGIRO", saxo: "Saxo" };
     const types = {
         compounder: "Compounder", bargain: "Bargain", cigar_butt: "Cigar butt", cyclical: "Cyclical",
@@ -81,6 +80,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 
     const number = (value, options) => new Intl.NumberFormat(host.locale, options).format(value);
     const money = (value, currency) => number(value, { style: "currency", currency });
+    const shares = (value) => number(value, { maximumFractionDigits: 6 });
     const time = (iso) =>
         new Intl.DateTimeFormat(host.locale, { timeStyle: "short", timeZone: host.timeZone }).format(new Date(iso));
 
@@ -126,11 +126,11 @@ button:disabled { opacity: 0.5; cursor: default; }
                 el("h1", draft.instrument),
                 rows([
                     ["Date", draft.tradeDate],
-                    ["Shares", number(draft.quantity)],
+                    ["Shares", shares(draft.quantity)],
                     ["Price", number(draft.price, { style: "currency", currency: draft.currency, maximumFractionDigits: 4 })],
                     ["Fees", money(draft.feesEur, "EUR")],
                     ["Total", money(draft.totalEur, "EUR")],
-                    ["Shares after", number(draft.sharesAfter)],
+                    ["Shares after", shares(draft.sharesAfter)],
                 ]),
             ];
         }
@@ -171,7 +171,6 @@ button:disabled { opacity: 0.5; cursor: default; }
         const discard = el("button", "Discard");
         const actions = el("div", undefined, "actions");
         const warnings = el("ul");
-        const noun = nouns[draft.kind];
 
         status.setAttribute("role", "status");
 
@@ -198,7 +197,7 @@ button:disabled { opacity: 0.5; cursor: default; }
                 } else if (outcome.status === "applied" || outcome.status === "duplicate") {
                     settle(outcome.status === "applied" ? "Saved." : "Already saved.");
                     tellModel(
-                        "The user pressed Confirm on the " + noun + " draft " + draft.draftId + ": it is saved." +
+                        "The user pressed Confirm on the " + draft.kind + " draft " + draft.draftId + ": it is saved." +
                             (draft.kind === "instrument" ? " Call refresh_prices to fetch its closes." : ""),
                     );
                 } else {
@@ -211,7 +210,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 
         discard.addEventListener("click", () => {
             settle("Discarded.");
-            tellModel("The user pressed Discard on the " + noun + " draft " + draft.draftId + ": nothing was saved.");
+            tellModel("The user pressed Discard on the " + draft.kind + " draft " + draft.draftId + ": nothing was saved.");
         });
 
         actions.append(confirm, discard);
@@ -271,7 +270,7 @@ button:disabled { opacity: 0.5; cursor: default; }
         reportSize();
 
         if ("ResizeObserver" in window) new ResizeObserver(reportSize).observe(document.body);
-    });
+    }).catch((error) => render(el("p", error.message, "note")));
 })();
 </script>
 </body>
