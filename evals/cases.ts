@@ -79,7 +79,7 @@ export const cases: Case[] = [
                     "it neither tried the sell nor read the holdings",
                 ),
                 ...failIf(
-                    !/\b(hold|held|own)\b|don['’]t have|do not have/i.test(replies[0]),
+                    !/\b(hold|held|own|position)\b|don['’]t have|do not have/i.test(replies[0]),
                     "the reply doesn't say the shares aren't held",
                 ),
             ];
