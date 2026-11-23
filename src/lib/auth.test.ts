@@ -146,3 +146,31 @@ it("lets a demo visitor connect Claude: the one-click sign-in carries Claude's r
     ]);
     expect(tools.status).toBe(200);
 });
+
+it("keeps demo visitors out of the shared account: no session list, and no IP or user agent stored", async () => {
+    const base = "http://localhost:3000";
+
+    vi.stubEnv("DEMO_MODE", "1");
+    await ingestRaw(db, instrumentsFile);
+
+    const signIn = await auth.handler(
+        new Request(`${base}/api/auth/demo/sign-in`, {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+                origin: base,
+                "x-forwarded-for": "203.0.113.7",
+                "user-agent": "Mozilla/5.0",
+            },
+            body: "{}",
+        }),
+    );
+    const cookie = signIn.headers.get("set-cookie")?.split(";")[0] ?? "";
+    const sessions = await auth.handler(new Request(`${base}/api/auth/list-sessions`, { headers: { cookie } }));
+
+    expect(sessions.status).toBe(403);
+    expect((await auth.api.getSession({ headers: new Headers({ cookie }) }))?.session).toMatchObject({
+        ipAddress: "",
+        userAgent: "",
+    });
+});

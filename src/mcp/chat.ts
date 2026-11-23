@@ -4,6 +4,7 @@ import type { Db } from "@/db/connect";
 import { getEffectiveTrades } from "@/db/ledger";
 import { chatDrafts, instruments, priceDaily, transactions } from "@/db/schema";
 import { addDays, ownerDate } from "@/lib/dates";
+import { isDemo } from "@/lib/demo/marker";
 import { held, replay } from "@/lib/engine/ledger";
 import { fromMicro, toCents, toMicro } from "@/lib/engine/money";
 import { ingestRaw } from "@/lib/import/ingest";
@@ -228,6 +229,8 @@ export async function confirmThesis(db: Db, draftId: string, now: Date) {
 }
 
 export async function addInstrument(db: Db, { optionCode, ...input }: InstrumentInput, now: Date) {
+    if (await isDemo(db)) throw new Error("The demo takes no new instruments");
+
     const id = input.name
         .normalize("NFKD")
         .toLowerCase()
