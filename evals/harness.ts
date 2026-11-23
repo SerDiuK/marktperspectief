@@ -28,7 +28,14 @@ const model = process.env.EVAL_MODEL ?? "claude-sonnet-5-5";
 
 const offline = new Set(["refresh_prices"]);
 
-const today = () => ownerDate(new Date());
+// Tuesday to Friday, so neither a trade today nor one yesterday falls on a weekend, which the model would ask about.
+function today() {
+    let date = ownerDate(new Date());
+
+    while (![2, 3, 4, 5].includes(new Date(`${date}T00:00:00Z`).getUTCDay())) date = addDays(date, -1);
+
+    return date;
+}
 
 // An investor with Exor at DEGIRO and Heineken at Saxo, priced on their buys and yesterday.
 async function portfolio() {
