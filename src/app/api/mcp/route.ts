@@ -4,7 +4,8 @@ import { db } from "@/db";
 import { auth, mcpResource } from "@/lib/auth";
 import { buildServer } from "@/mcp/server";
 
-const handler = createMcpHandler(() => buildServer(db));
+// A listen stream holds the function open until Vercel's timeout, and the server publishes no change events.
+const handler = createMcpHandler(() => buildServer(db), { maxSubscriptions: 0 });
 
 export const POST = requireMcpAuth(auth, (request) => handler.fetch(request), {
     resource: mcpResource,
