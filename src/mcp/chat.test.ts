@@ -1,7 +1,9 @@
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { getEffectiveTrades } from "@/db/ledger";
 import { priceDaily, theses, transactions } from "@/db/schema";
 import { freshDb } from "@/db/test-db";
+import { instrumentsFile } from "@/lib/demo/marker";
+import { ingestRaw } from "@/lib/import/ingest";
 import { loadHolding } from "@/lib/portfolio/holding";
 import { type ThesisInput, thesisInput } from "@/lib/schemas";
 import {
@@ -16,6 +18,10 @@ import {
 
 vi.mock("@/lib/import/raw-store", () => ({ putRaw: vi.fn() }));
 
+afterEach(() => {
+    vi.unstubAllEnvs();
+});
+
 const now = new Date("2026-10-29T23:30:00Z");
 const buy = {
     instrument: "EXO",
@@ -25,6 +31,7 @@ const buy = {
     price: 33.14,
     feesEur: 1,
 } as const;
+const wolters = { isin: "NL0000395903", name: "Wolters Kluwer", currency: "EUR", yahooSymbol: "WKL.AS" } as const;
 
 async function setUp() {
     const database = await freshDb();
@@ -129,7 +136,6 @@ it("saves a thesis only once confirmed, makes the newest one the holding's curre
 
 it("adds an instrument only once confirmed, so a trade can name it, and refuses an ISIN the ledger knows", async () => {
     const database = await setUp();
-    const wolters = { isin: "NL0000395903", name: "Wolters Kluwer", currency: "EUR", yahooSymbol: "WKL.AS" } as const;
     const preview = await addInstrument(database, wolters, now);
 
     await expect(addTransaction(database, { ...buy, instrument: "WKL" }, now)).rejects.toThrow("No instrument matches");
@@ -138,4 +144,13 @@ it("adds an instrument only once confirmed, so a trade can name it, and refuses 
     await expect(
         addInstrument(database, { ...wolters, name: "Philips again", isin: "NL0000009538" }, now),
     ).rejects.toThrow("already belongs to philips");
+});
+
+it("adds no instrument on the public demo, where it would outlive the reload", async () => {
+    const database = await setUp();
+
+    vi.stubEnv("DEMO_MODE", "1");
+    await ingestRaw(database, instrumentsFile);
+
+    await expect(addInstrument(database, wolters, now)).rejects.toThrow("The demo takes no new instruments");
 });

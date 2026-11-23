@@ -31,8 +31,12 @@ export const instrumentsFile = {
 
 const marker = createHash("sha256").update(instrumentsFile.bytes).digest("hex");
 
-export async function isDemoDatabase(db: Db) {
+async function isDemoDatabase(db: Db) {
     return (await db.$count(rawImports, eq(rawImports.sha256, marker))) > 0;
+}
+
+export async function isDemo(db: Db) {
+    return process.env.DEMO_MODE === "1" && isDemoDatabase(db);
 }
 
 export async function canLoadDemo(db: Db) {
