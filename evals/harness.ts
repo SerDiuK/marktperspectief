@@ -28,7 +28,8 @@ const model = process.env.EVAL_MODEL ?? "claude-sonnet-5-5";
 
 const offline = new Set(["refresh_prices"]);
 
-// Tuesday to Friday, so neither a trade today nor one yesterday falls on a weekend, which the model would ask about.
+// The model's today and the server's clock alike: Tuesday to Friday, so neither a trade today nor one yesterday falls
+// on a weekend, which the model would ask about.
 function today() {
     let date = ownerDate(new Date());
 
@@ -37,10 +38,11 @@ function today() {
     return date;
 }
 
+const now = () => new Date(`${today()}T12:00:00Z`);
+
 // An investor with Exor at DEGIRO and Heineken at Saxo, priced on their buys and yesterday.
 async function portfolio() {
     const db = await freshDb();
-    const now = new Date();
 
     await db.insert(priceDaily).values([
         { instrumentId: "heineken", date: addDays(today(), -60), close: 80 },
@@ -53,10 +55,10 @@ async function portfolio() {
         { instrument: "EXO", broker: "degiro", quantity: 40, price: 31.5, tradeDate: addDays(today(), -30) },
         { instrument: "HEIA", broker: "saxo", quantity: 25, price: 80, tradeDate: addDays(today(), -60) },
     ] as const) {
-        const preview = await addTransaction(db, { ...trade, side: "buy", feesEur: 2 }, now);
+        const preview = await addTransaction(db, { ...trade, side: "buy", feesEur: 2 }, now());
 
         if (!("draftId" in preview)) throw new Error(`No draft for ${trade.instrument}`);
-        await confirmTransaction(db, preview.draftId, now);
+        await confirmTransaction(db, preview.draftId, now());
     }
 
     return db;
@@ -67,7 +69,7 @@ const text = (result: CallToolResult) =>
 
 export async function run({ host, turns }: Case): Promise<Run> {
     const db = await portfolio();
-    const server = buildServer(db);
+    const server = buildServer(db, now);
     const client = new Client({ name: `eval-${host}`, version: "1.0.0" });
     const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
 

@@ -26,7 +26,7 @@ const json = (value: Record<string, unknown>) => ({
 const withCard = { ui: { resourceUri: draftCardUri } };
 const cardOnly = { ui: { visibility: ["app" as const] } };
 
-export function buildServer(db: Db) {
+export function buildServer(db: Db, now = () => new Date()) {
     const server = new McpServer(
         { name: "marktperspectief", version: "0.1.0" },
         {
@@ -75,7 +75,7 @@ export function buildServer(db: Db) {
         },
         async () => {
             const sync = await syncMarketData(db);
-            const derived = await refreshDerived(db, ownerDate(new Date()));
+            const derived = await refreshDerived(db, ownerDate(now()));
 
             return json({ ...sync, ...derived });
         },
@@ -91,7 +91,7 @@ export function buildServer(db: Db) {
             inputSchema: transactionInput,
             _meta: withCard,
         },
-        async (input) => json({ kind: "trade", ...(await addTransaction(db, input, new Date())) }),
+        async (input) => json({ kind: "trade", ...(await addTransaction(db, input, now())) }),
     );
 
     registerAppTool(
@@ -104,7 +104,7 @@ export function buildServer(db: Db) {
             inputSchema: draftInput,
             _meta: cardOnly,
         },
-        async ({ draftId }) => json(await confirmTransaction(db, draftId, new Date())),
+        async ({ draftId }) => json(await confirmTransaction(db, draftId, now())),
     );
 
     server.registerTool(
@@ -116,7 +116,7 @@ export function buildServer(db: Db) {
             inputSchema: draftInput,
             annotations: { destructiveHint: true },
         },
-        async ({ draftId }) => json(await undoChatTransaction(db, draftId, new Date())),
+        async ({ draftId }) => json(await undoChatTransaction(db, draftId, now())),
     );
 
     registerAppTool(
@@ -129,7 +129,7 @@ export function buildServer(db: Db) {
             inputSchema: thesisInput,
             _meta: withCard,
         },
-        async (input) => json({ kind: "thesis", ...(await proposeThesis(db, input, new Date())) }),
+        async (input) => json({ kind: "thesis", ...(await proposeThesis(db, input, now())) }),
     );
 
     registerAppTool(
@@ -142,7 +142,7 @@ export function buildServer(db: Db) {
             inputSchema: draftInput,
             _meta: cardOnly,
         },
-        async ({ draftId }) => json(await confirmThesis(db, draftId, new Date())),
+        async ({ draftId }) => json(await confirmThesis(db, draftId, now())),
     );
 
     registerAppTool(
@@ -155,7 +155,7 @@ export function buildServer(db: Db) {
             inputSchema: instrumentInput,
             _meta: withCard,
         },
-        async (input) => json({ kind: "instrument", ...(await addInstrument(db, input, new Date())) }),
+        async (input) => json({ kind: "instrument", ...(await addInstrument(db, input, now())) }),
     );
 
     registerAppTool(
@@ -168,7 +168,7 @@ export function buildServer(db: Db) {
             inputSchema: draftInput,
             _meta: cardOnly,
         },
-        async ({ draftId }) => json(await confirmInstrument(db, draftId, new Date())),
+        async ({ draftId }) => json(await confirmInstrument(db, draftId, now())),
     );
 
     registerAppResource(
