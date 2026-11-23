@@ -51,14 +51,10 @@ it("lists a sold and re-bought holding's trades and dividends newest first in eu
             price: 500,
         },
     ]);
-    await db.insert(income).values({
-        ...degiro,
-        externalKey: "a",
-        kind: "dividend",
-        payDate: "2022-08-01",
-        amount: 10,
-        gross: 12,
-    });
+    await db.insert(income).values([
+        { ...degiro, externalKey: "a", kind: "dividend", payDate: "2022-08-01", amount: 12, gross: 12 },
+        { ...degiro, externalKey: "b", kind: "dividend", payDate: "2022-08-01", amount: -2, gross: 0 },
+    ]);
     await db.insert(priceDaily).values([
         { instrumentId: "bayer", date: "2018-07-03", close: 20 },
         { instrumentId: "bayer", date: "2018-07-04", close: 20.5 },

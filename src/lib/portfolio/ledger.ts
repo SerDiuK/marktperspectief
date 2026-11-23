@@ -21,10 +21,11 @@ export function append<T>(series: Map<string, T[]>, key: string, item: T) {
     else series.set(key, [item]);
 }
 
-export function tradePrices(trades: Trade[], lastClose: Map<string, string>) {
+export function tradePrices(trades: Trade[], lastClose: Map<string, string>, firstClose = new Map<string, string>()) {
     return trades.filter(
         ({ instrumentId, side, tradeDate }) =>
-            (side === "buy" || side === "sell") && tradeDate > (lastClose.get(instrumentId) ?? ""),
+            (side === "buy" || side === "sell") &&
+            (tradeDate > (lastClose.get(instrumentId) ?? "") || tradeDate < (firstClose.get(instrumentId) ?? "")),
     );
 }
 
@@ -116,6 +117,21 @@ function brokerShares(trades: Trade[], stockDividends: StockDividends) {
     return shares;
 }
 
+const sum = (values: number[]) => toCents(values.reduce((total, value) => total + value, 0)) / 100;
+
+export function payments(lines: (typeof income.$inferSelect)[]) {
+    const groups = Map.groupBy(lines, ({ broker, instrumentId, payDate, kind, currency, gross }) =>
+        [broker, instrumentId, payDate, kind, currency, gross === null].join("|"),
+    );
+
+    return [...groups.values()].flatMap((group) => {
+        const amount = sum(group.map((line) => line.amount));
+        const gross = group[0].gross === null ? null : sum(group.map((line) => line.gross ?? 0));
+
+        return amount || gross ? [{ ...group[0], amount, gross }] : [];
+    });
+}
+
 export function euroIncome(
     rows: (typeof income.$inferSelect)[],
     {
@@ -201,7 +217,7 @@ export async function loadLedger(db: Db) {
         toEur,
         eurTrades: euroTrades(trades, toEur),
         eurPuts: euroPuts(putTrades),
-        incomeFlows: euroIncome(payouts, {
+        incomeFlows: euroIncome(payments(payouts), {
             trades,
             stockDividends,
             events,

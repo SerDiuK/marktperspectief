@@ -1,0 +1,1 @@
+ALTER TABLE `raw_imports` DROP COLUMN `uploaded_at`;

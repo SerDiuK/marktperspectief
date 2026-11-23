@@ -33,7 +33,6 @@ export const rawImports = sqliteTable("raw_imports", {
     }).notNull(),
     sha256: text().notNull().unique(),
     originalName: text().notNull(),
-    uploadedAt: text().notNull(),
     updatedAt: text().notNull(),
     parserVersion: integer().notNull(),
     status: text({ enum: ["applied", "failed"] }).notNull(),
@@ -94,8 +93,8 @@ export const transactions = sqliteTable(
     ],
 );
 
-// amount is the cash the broker booked; gross is null when the broker does not
-// show it.
+// amount is the cash a statement line booked and gross its part of the gross:
+// 0 on a withholding line, null when the broker does not show it.
 export const income = sqliteTable(
     "income",
     {

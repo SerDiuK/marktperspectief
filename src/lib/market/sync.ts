@@ -1,21 +1,20 @@
-import { max, sql } from "drizzle-orm";
+import { max, min, sql } from "drizzle-orm";
 import { chunks, type Db } from "@/db/connect";
-import { dividendEvents, fxDaily, instruments, priceDaily } from "@/db/schema";
+import { dividendEvents, fxDaily, instruments, priceDaily, transactions } from "@/db/schema";
 import { addDays } from "@/lib/dates";
 import { fetchEcbRates } from "./ecb";
 import { fetchChart } from "./yahoo";
 
 // Re-fetching the last days picks up late corrections. With nothing stored,
-// a fetch starts before the first trade.
+// a fetch starts before the first trade, or, before there is one, at a date
+// early enough for the demo's plan.
 const OVERLAP_DAYS = 10;
-const FIRST_DATE = "2017-12-15";
-
-const fetchFrom = (lastStored: string | null | undefined) =>
-    lastStored ? addDays(lastStored, -OVERLAP_DAYS) : FIRST_DATE;
+const NO_TRADES_START = "2017-12-15";
 
 export async function syncMarketData(db: Db) {
-    const [securities, lastCloses, lastRates, storedDividends] = await Promise.all([
+    const [securities, [firstTrade], lastCloses, lastRates, storedDividends] = await Promise.all([
         db.select().from(instruments),
+        db.select({ date: min(transactions.tradeDate) }).from(transactions),
         db
             .select({
                 instrumentId: priceDaily.instrumentId,
@@ -29,6 +28,9 @@ export async function syncMarketData(db: Db) {
             .groupBy(fxDaily.currency),
         db.$count(dividendEvents),
     ]);
+    const start = firstTrade?.date ? addDays(firstTrade.date, -OVERLAP_DAYS) : NO_TRADES_START;
+    const fetchFrom = (lastStored: string | null | undefined) =>
+        lastStored ? addDays(lastStored, -OVERLAP_DAYS) : start;
     const lastClose = new Map(storedDividends ? lastCloses.map(({ instrumentId, date }) => [instrumentId, date]) : []);
     const report = {
         closes: 0,
@@ -93,6 +95,8 @@ export async function syncMarketData(db: Db) {
     const foreign = [...new Set(securities.map(({ currency }) => currency))].filter((currency) => currency !== "EUR");
     const lastRate = new Map(lastRates.map(({ currency, date }) => [currency, date]));
     const from = foreign.map((currency) => fetchFrom(lastRate.get(currency))).sort()[0];
+
+    if (!from) return report;
 
     try {
         const rates = await fetchEcbRates(foreign, from);

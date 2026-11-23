@@ -64,12 +64,13 @@ function nonCashPairs(rows: Row[]) {
     );
 }
 
+const rowKey = (row: Row) => `${row.orderId}|${row.date}|${row.time}|${row.quantity}|${row.price}`;
+
 // Identical rows, such as two fills of one order, get their own keys.
 function externalKeys() {
     const occurrences = new Map<string, number>();
 
-    return (row: Row) => {
-        const key = `${row.orderId}|${row.date}|${row.time}|${row.quantity}|${row.price}`;
+    return (key: string) => {
         const occurrence = occurrences.get(key) ?? 0;
 
         occurrences.set(key, occurrence + 1);
@@ -133,7 +134,7 @@ export function parseDegiroTransactions(text: string): ParseResult {
         result.trades.push({
             source: "degiro",
             broker: "degiro",
-            externalKey: tradeKey(row),
+            externalKey: tradeKey(rowKey(row)),
             isin: row.isin,
             side: row.quantity > 0 ? "buy" : "sell",
             tradeDate: row.date,
@@ -157,7 +158,7 @@ export function parseDegiroTransactions(text: string): ParseResult {
         result.puts.push({
             ...put,
             broker: "degiro",
-            externalKey: putKey(row),
+            externalKey: putKey(rowKey(row)),
             tradeDate: row.date,
             premium: row.price,
             feesEur: row.feesEur,
@@ -167,7 +168,7 @@ export function parseDegiroTransactions(text: string): ParseResult {
     return result;
 }
 
-type CashLine = "dividend" | "withholding" | "lending" | "fee" | "instrument fee";
+type CashLine = "dividend" | "withholding" | "lending" | "fee";
 
 const skipped = [
     /^(?:[^:]+: ?)?(?:Compra|Venta) /,
@@ -180,8 +181,8 @@ const cashLines: Record<string, CashLine> = {
     Dividendo: "dividend",
     "Corrección del dividendo": "dividend",
     "Retención del dividendo": "withholding",
-    "Impuesto de transacción Francés": "instrument fee",
-    "Acciones corporativas liquidación por diferencias": "instrument fee",
+    "Impuesto de transacción Francés": "fee",
+    "Acciones corporativas liquidación por diferencias": "fee",
     "Comisión de Ejercicio de Opciones o Futuros": "fee",
     "Compensación DEGIRO": "fee",
     "Promoción DEGIRO reembolso": "fee",
@@ -202,11 +203,6 @@ function cashLine(description: string): CashLine | undefined {
     return cashLines[description];
 }
 
-// The others carry no ISIN, or an option's, which is no instrument.
-const perInstrument = new Set<CashLine>(["dividend", "instrument fee"]);
-
-const round = (value: number) => Math.round(value * 100) / 100;
-
 export function parseDegiroAccount(text: string): ParseResult {
     const result = emptyParse();
     const [, ...lines] = Papa.parse<string[]>(text, {
@@ -214,6 +210,8 @@ export function parseDegiroAccount(text: string): ParseResult {
     }).data;
     const rows: {
         line: number;
+        date: string;
+        time: string;
         valueDate: string;
         isin: string;
         description: string;
@@ -223,7 +221,7 @@ export function parseDegiroAccount(text: string): ParseResult {
     }[] = [];
 
     lines.forEach((cells, index) => {
-        const [date, , valueDate, , isin, description, , currency, change, , , orderId] = cells;
+        const [date, time, valueDate, , isin, description, , currency, change, , , orderId] = cells;
         const previous = rows.at(-1);
 
         if (!date && previous) {
@@ -234,6 +232,8 @@ export function parseDegiroAccount(text: string): ParseResult {
 
         rows.push({
             line: index + 2,
+            date: isoDate(date),
+            time,
             valueDate: isoDate(valueDate),
             isin,
             description,
@@ -243,17 +243,7 @@ export function parseDegiroAccount(text: string): ParseResult {
         });
     });
 
-    const sums = new Map<
-        string,
-        {
-            line: Exclude<CashLine, "withholding">;
-            isin: string | null;
-            date: string;
-            currency: (typeof currencies)[number];
-            total: number;
-            withholding: number;
-        }
-    >();
+    const lineKey = externalKeys();
 
     for (const row of rows) {
         if (skipped.some((pattern) => pattern.test(row.description))) continue;
@@ -273,60 +263,40 @@ export function parseDegiroAccount(text: string): ParseResult {
             continue;
         }
 
-        const group = line === "withholding" ? "dividend" : line;
-        const isin = perInstrument.has(group) ? row.isin : null;
-        const key = `${isin ?? ""}|${row.valueDate}|${currency}|${group === "dividend" ? group : row.description}`;
-        const sum = sums.get(key) ?? {
-            line: group,
-            isin,
-            date: row.valueDate,
-            currency,
-            total: 0,
-            withholding: 0,
-        };
+        const change = amount(row.change);
 
-        if (line === "withholding") sum.withholding -= amount(row.change);
-        else sum.total += amount(row.change);
-        sums.set(key, sum);
-    }
+        if (!change) continue;
 
-    for (const [externalKey, sum] of sums) {
-        const { line, isin, date, currency } = sum;
-        const [total, withholding] = [round(sum.total), round(sum.withholding)];
+        const externalKey = lineKey(
+            `${row.date}|${row.time}|${row.valueDate}|${row.isin}|${row.description}|${currency}|${change}`,
+        );
+        const origin = { source: "degiro", broker: "degiro", externalKey } as const;
 
-        if (!total && !withholding) continue;
-
-        const origin = {
-            source: "degiro",
-            broker: "degiro",
-            externalKey,
-        } as const;
-
-        if (line === "dividend") {
+        if (line === "dividend" || line === "withholding") {
             result.income.push({
                 ...origin,
-                isin,
+                isin: row.isin,
                 kind: "dividend",
-                payDate: date,
-                amount: round(total - withholding),
-                gross: total,
+                payDate: row.valueDate,
+                amount: change,
+                gross: line === "dividend" ? change : 0,
                 currency,
             });
         } else if (line === "lending") {
             result.income.push({
                 ...origin,
-                isin,
+                isin: null,
                 kind: "lending",
-                payDate: date,
-                amount: total,
+                payDate: row.valueDate,
+                amount: change,
                 currency,
             });
         } else {
             result.fees.push({
                 broker: "degiro",
                 externalKey,
-                date,
-                amount: -total,
+                date: row.valueDate,
+                amount: -change,
                 currency,
             });
         }

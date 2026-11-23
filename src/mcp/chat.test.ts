@@ -3,7 +3,7 @@ import { getEffectiveTrades } from "@/db/ledger";
 import { priceDaily, theses, transactions } from "@/db/schema";
 import { freshDb } from "@/db/test-db";
 import { loadHolding } from "@/lib/portfolio/holding";
-import type { ThesisInput } from "@/lib/schemas";
+import { type ThesisInput, thesisInput } from "@/lib/schemas";
 import {
     addInstrument,
     addTransaction,
@@ -46,7 +46,7 @@ async function draft(database: Awaited<ReturnType<typeof setUp>>) {
     return preview.draftId;
 }
 
-it("previews a trade on today's date in Madrid without recording it, warns on a price far from the close, and refuses a sell of more than is held", async () => {
+it("previews a trade on today's date in Madrid without recording it, warns on a price far from the close, and refuses a sell of more than is held or a date in the future", async () => {
     const database = await setUp();
 
     const preview = await addTransaction(database, buy, now);
@@ -62,6 +62,7 @@ it("previews a trade on today's date in Madrid without recording it, warns on a 
     expect(typo).toMatchObject({ warnings: [expect.stringContaining("15%")] });
     expect(await database.$count(transactions)).toBe(0);
     await expect(addTransaction(database, { ...buy, side: "sell" }, now)).rejects.toThrow("more shares than are held");
+    await expect(addTransaction(database, { ...buy, tradeDate: "2026-10-31" }, now)).rejects.toThrow("in the future");
 });
 
 it("records a confirmed draft once and undoes it, and refuses a draft older than 30 minutes", async () => {
@@ -81,6 +82,16 @@ it("records a confirmed draft once and undoes it, and refuses a draft older than
     const later = new Date(now.getTime() + 31 * 60_000);
 
     await expect(confirmTransaction(database, stale, later)).rejects.toThrow("No open draft");
+});
+
+it("refuses to undo a chat trade the broker's export has replaced", async () => {
+    const database = await setUp();
+    const draftId = await draft(database);
+
+    await confirmTransaction(database, draftId, now);
+    await database.update(transactions).set({ supersededBy: "degiro:order-1" });
+
+    await expect(undoChatTransaction(database, draftId, now)).rejects.toThrow("replaced");
 });
 
 it("saves a thesis only once confirmed, makes the newest one the holding's current thesis, and refuses a bargain with one pillar or a trade's draft", async () => {
@@ -112,9 +123,7 @@ it("saves a thesis only once confirmed, makes the newest one the holding's curre
     await confirmThesis(database, await propose({ ...bargain, type: "compounder", reason: "Its moat held" }), now);
 
     expect((await loadHolding(database, "exor"))?.position?.thesis).toMatchObject({ type: "compounder" });
-    await expect(proposeThesis(database, { ...bargain, pillars: bargain.pillars.slice(1) }, now)).rejects.toThrow(
-        "two to four pillars",
-    );
+    expect(thesisInput.safeParse({ ...bargain, pillars: bargain.pillars.slice(1) }).success).toBe(false);
     await expect(confirmThesis(database, await draft(database), now)).rejects.toThrow("not a thesis");
 });
 

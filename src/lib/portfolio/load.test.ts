@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { expect, it } from "vitest";
 import {
     dividendEvents,
@@ -116,6 +117,44 @@ it("grosses up a net dividend from Yahoo's dividend and the shares held at that 
     const { incomeFlows } = await loadLedger(db);
 
     expect(incomeFlows.map(({ value }) => value)).toEqual([65000, 1000, -200]);
+});
+
+it("sums a payment's lines before grossing it up: a correction joins its net dividend, a full reversal leaves nothing, a fully withheld one keeps its gross, and a payout with its gross stays apart", async () => {
+    const db = await freshDb();
+    const rawImportId = await insertRawImport(db);
+
+    await db.insert(transactions).values({
+        ...trade,
+        externalKey: "1",
+        rawImportId,
+        side: "buy",
+        tradeDate: "2023-01-10",
+        quantity: 100,
+        price: 90,
+    });
+    await db.insert(dividendEvents).values([
+        { instrumentId: "kbc", exDate: "2025-05-09", amount: 5 },
+        { instrumentId: "kbc", exDate: "2025-11-07", amount: 0.6 },
+    ]);
+
+    const line = { ...trade, rawImportId, kind: "dividend" } as const;
+
+    await db.insert(income).values([
+        { ...line, externalKey: "a", payDate: "2025-05-13", amount: 350 },
+        { ...line, externalKey: "b", payDate: "2025-05-13", amount: 0.05 },
+        { ...line, externalKey: "c", payDate: "2025-05-13", amount: 12, gross: 12 },
+        { ...line, externalKey: "d", payDate: "2025-11-12", amount: 45.1 },
+        { ...line, externalKey: "e", payDate: "2025-11-12", amount: 0.2 },
+        { ...line, externalKey: "f", payDate: "2025-11-12", amount: -45.3 },
+        { ...line, externalKey: "g", payDate: "2025-12-01", amount: 8, gross: 8 },
+        { ...line, externalKey: "h", payDate: "2025-12-01", amount: -8, gross: 0 },
+    ]);
+
+    expect((await loadLedger(db)).incomeFlows).toEqual([
+        { date: "2025-05-13", value: 50000 },
+        { date: "2025-05-13", value: 1200 },
+        { date: "2025-12-01", value: 800 },
+    ]);
 });
 
 it("sums the overview: realised after a part sale, a day's change without that day's buy, total return and a year of dividends", async () => {
@@ -314,4 +353,79 @@ it("gives a portfolio that only holds the Stoxx 600 ETF and takes its dividend o
         expect(twr).toBeCloseTo(stoxx600Twr!, 12);
         expect(stoxx600Irr).toBeCloseTo(irr!, 9);
     }
+});
+
+it("pays a put's buyback in with its fees, and nets it from the premium", async () => {
+    const db = await freshDb();
+    const put = {
+        broker: "degiro",
+        rawImportId: await insertRawImport(db),
+        instrumentId: "heineken",
+        strike: 22,
+        expiry: "2025-06-20",
+        contracts: 1,
+        feesEur: 0.75,
+    } as const;
+
+    await db.insert(transactions).values({
+        ...trade,
+        externalKey: "1",
+        rawImportId: put.rawImportId,
+        side: "buy",
+        tradeDate: "2025-04-17",
+        quantity: 1,
+        price: 100,
+    });
+    await db.insert(optionTrades).values([
+        { ...put, externalKey: "sold", side: "sell", tradeDate: "2025-04-17", premium: 2.55 },
+        { ...put, externalKey: "bought", side: "buy", tradeDate: "2025-05-02", premium: 1 },
+    ]);
+    await db.insert(priceDaily).values([
+        { instrumentId: "heineken", date: "2025-04-17", close: 25 },
+        { instrumentId: "kbc", date: "2025-04-17", close: 100 },
+    ]);
+    await refreshDerived(db, "2025-05-02");
+
+    expect(await db.select().from(portfolioDaily).where(eq(portfolioDaily.date, "2025-05-02"))).toMatchObject([
+        { inflowCents: 10075 },
+    ]);
+    expect((await loadPortfolio(db)).puts).toMatchObject([{ premiumEur: 153.5 }]);
+});
+
+it("grosses up a dividend at the broker shares moved to", async () => {
+    const db = await freshDb();
+    const shares = {
+        rawImportId: await insertRawImport(db),
+        instrumentId: "kbc",
+        quantity: 100,
+        price: 90,
+        currency: "EUR",
+    } as const;
+
+    await db.insert(transactions).values([
+        { ...shares, source: "binck", broker: "binck", externalKey: "buy", side: "buy", tradeDate: "2023-01-10" },
+        {
+            ...shares,
+            source: "binck",
+            broker: "binck",
+            externalKey: "out",
+            side: "transfer_out",
+            tradeDate: "2024-03-01",
+        },
+        { ...shares, source: "saxo", broker: "saxo", externalKey: "in", side: "transfer_in", tradeDate: "2024-03-01" },
+    ]);
+    await db.insert(dividendEvents).values({ instrumentId: "kbc", exDate: "2025-05-09", amount: 5 });
+    await db.insert(income).values({
+        source: "saxo",
+        broker: "saxo",
+        rawImportId: shares.rawImportId,
+        externalKey: "a",
+        kind: "dividend",
+        instrumentId: "kbc",
+        payDate: "2025-05-13",
+        amount: 350,
+        currency: "EUR",
+    });
+
+    expect((await loadLedger(db)).incomeFlows.map(({ value }) => value)).toEqual([50000]);
 });

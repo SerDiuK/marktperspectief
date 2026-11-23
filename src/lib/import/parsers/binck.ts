@@ -1,7 +1,6 @@
 import Papa from "papaparse";
 import { emptyParse, type ParseResult } from "../types";
 
-// The CSV normalised once from Binck's PDF account statements, 2018–2021.
 export const BINCK_HEADER =
     "date,binck_nr,kind,isin,name,quantity,price,currency,gross,fees,withholding,withholding_rate,net,order_no,position_after,note";
 
@@ -43,7 +42,6 @@ export function parseBinck(text: string): ParseResult {
                     side: "transfer_out",
                     tradeDate: line.date,
                     quantity: Number(line.quantity),
-                    // Binck's average cost; the engine keeps the lots' own costs.
                     price: Number(line.price),
                     currency: "EUR",
                 });

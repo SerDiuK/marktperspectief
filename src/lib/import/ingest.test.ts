@@ -1,10 +1,12 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, expect, it, vi } from "vitest";
+import { getEffectiveTrades } from "@/db/ledger";
 import { corporateActions, optionTrades, rawImports, transactions } from "@/db/schema";
 import { freshDb } from "@/db/test-db";
+import { loadLedger } from "@/lib/portfolio/ledger";
 import { ingestRaw, rebuild } from "./ingest";
 import { BINCK_HEADER } from "./parsers/binck";
-import { DEGIRO_TRANSACTIONS_HEADER } from "./parsers/degiro";
+import { DEGIRO_ACCOUNT_HEADER, DEGIRO_TRANSACTIONS_HEADER } from "./parsers/degiro";
 import { getRaw, listRaw, putRaw } from "./raw-store";
 
 vi.mock("./raw-store", () => ({ putRaw: vi.fn(), listRaw: vi.fn(), getRaw: vi.fn() }));
@@ -32,7 +34,7 @@ function degiro(lines: string[]) {
     };
 }
 
-function chat(draftId: string, tradeDate: string, price = 1300) {
+function chat(draftId: string, tradeDate: string, price = 1300, side = "buy", quantity = 5) {
     return {
         name: `${draftId}.add.json`,
         bytes: new TextEncoder().encode(
@@ -42,9 +44,9 @@ function chat(draftId: string, tradeDate: string, price = 1300) {
                 trade: {
                     broker: "degiro",
                     isin: "NL0000009538",
-                    side: "buy",
+                    side,
                     tradeDate,
-                    quantity: 5,
+                    quantity,
                     price,
                     currency: "EUR",
                     feesEur: 0,
@@ -79,8 +81,56 @@ function bonus(shares: number) {
     };
 }
 
+function entry(draft: number, rest: object) {
+    return {
+        name: `${draft}.json`,
+        bytes: new TextEncoder().encode(
+            JSON.stringify({ draftId: `00000000-0000-4000-8000-${String(draft).padStart(12, "0")}`, ...rest }),
+        ),
+    };
+}
+
 beforeEach(() => {
     vi.mocked(putRaw).mockClear();
+});
+
+it("refuses an instrument whose ISIN is another instrument's old ISIN", async () => {
+    const db = await freshDb();
+
+    await ingestRaw(
+        db,
+        entry(20, { chat: "instruments", aliases: [{ kind: "isin", value: "US0378331005", instrumentId: "philips" }] }),
+    );
+
+    const result = await ingestRaw(
+        db,
+        entry(21, {
+            chat: "instruments",
+            instruments: [{ id: "foo", isin: "US0378331005", name: "Foo", currency: "USD", yahooSymbol: null }],
+        }),
+    );
+
+    expect(result.report.errors).toEqual(["ISIN US0378331005 already belongs to philips"]);
+});
+
+it("never applies two sells confirmed at once that together sell more than is held", async () => {
+    const db = await freshDb();
+
+    await ingestRaw(db, degiro([trade]));
+    await Promise.allSettled([
+        ingestRaw(db, chat("00000000-0000-4000-8000-000000000031", "2023-02-01", 1300, "sell", 4)),
+        ingestRaw(db, chat("00000000-0000-4000-8000-000000000032", "2023-02-02", 1300, "sell", 4)),
+    ]);
+
+    expect((await getEffectiveTrades(db)).filter(({ side }) => side === "sell")).toHaveLength(1);
+});
+
+it("refuses an uploaded thesis with fewer than two pillars unless it is avoid", async () => {
+    const db = await freshDb();
+    const thesis = (type: string) => ({ isin: "NL0000009538", date: "2024-01-01", type, pillars: [], reason: "Why" });
+
+    expect((await ingestRaw(db, entry(40, { chat: "thesis", thesis: thesis("bargain") }))).status).toBe("rejected");
+    expect((await ingestRaw(db, entry(41, { chat: "thesis", thesis: thesis("avoid") }))).status).toBe("applied");
 });
 
 it("stores a file and applies it once", async () => {
@@ -152,6 +202,29 @@ it("adds only the new trades of an overlapping DEGIRO export", async () => {
 
     expect(result.report.rows).toMatchObject({ trades: 1, duplicates: 1 });
     expect(await db.$count(transactions)).toBe(2);
+});
+
+it("adds a dividend's reversal and rebooking from a later, overlapping DEGIRO statement to the lines it already has", async () => {
+    const db = await freshDb();
+    const statement = (lines: string[]) => ({
+        name: "Account.csv",
+        bytes: new TextEncoder().encode([DEGIRO_ACCOUNT_HEADER, ...lines].join("\n")),
+    });
+    const paid = [
+        '08-05-2026,07:15,07-05-2026,LVMH MOET HENNESSY,FR0000121014,Retención del dividendo,,EUR,"-25,00",EUR,"60,00",',
+        '08-05-2026,07:15,07-05-2026,LVMH MOET HENNESSY,FR0000121014,Dividendo,,EUR,"100,00",EUR,"85,00",',
+    ];
+    const rebooked = [
+        '05-06-2026,13:49,07-05-2026,LVMH MOET HENNESSY,FR0000121014,Retención del dividendo,,EUR,"-30,00",EUR,"175,00",',
+        '05-06-2026,13:49,07-05-2026,LVMH MOET HENNESSY,FR0000121014,Dividendo,,EUR,"120,00",EUR,"205,00",',
+        '05-06-2026,13:48,07-05-2026,LVMH MOET HENNESSY,FR0000121014,Retención del dividendo,,EUR,"25,00",EUR,"85,00",',
+        '05-06-2026,13:48,07-05-2026,LVMH MOET HENNESSY,FR0000121014,Dividendo,,EUR,"-100,00",EUR,"60,00",',
+    ];
+
+    await ingestRaw(db, statement(paid));
+    await ingestRaw(db, statement([...rebooked, ...paid]));
+
+    expect((await loadLedger(db)).incomeFlows).toEqual([{ date: "2026-05-07", value: 12000 }]);
 });
 
 it("adds a DEGIRO export's puts once, on their underlying", async () => {

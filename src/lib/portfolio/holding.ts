@@ -2,14 +2,14 @@ import { asc, desc, eq } from "drizzle-orm";
 import type { Db } from "@/db/connect";
 import { income, portfolioDaily, priceDaily } from "@/db/schema";
 import { fromMicro } from "@/lib/engine/money";
-import { euroIncome, euroTrades, loadLedger } from "./ledger";
+import { euroIncome, euroTrades, loadLedger, payments } from "./ledger";
 import { loadHoldings } from "./load";
 
 export type Holding = NonNullable<Awaited<ReturnType<typeof loadHolding>>>;
 
 /** Closes are in the listing's currency, and entries come newest first. */
 export async function loadHolding(db: Db, instrumentId: string) {
-    const [ledger, [latest], payouts, closes] = await Promise.all([
+    const [ledger, [latest], lines, closes] = await Promise.all([
         loadLedger(db),
         db.select({ date: portfolioDaily.date }).from(portfolioDaily).orderBy(desc(portfolioDaily.date)).limit(1),
         db.select().from(income).where(eq(income.instrumentId, instrumentId)),
@@ -26,6 +26,7 @@ export async function loadHolding(db: Db, instrumentId: string) {
     if (!security || !own.length) return null;
 
     const { holdings, closed } = await loadHoldings(db, ledger, latest?.date);
+    const payouts = payments(lines);
     const ownStockDividends = stockDividends.filter((dividend) => dividend.instrumentId === instrumentId);
     const euros = euroTrades(own, toEur);
     const dividends = euroIncome(payouts, {

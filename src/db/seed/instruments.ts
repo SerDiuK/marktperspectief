@@ -1,7 +1,6 @@
 import type { instruments } from "../schema";
 
-// The benchmarks the overview compares with. Holdings come from instruments
-// files and add_instrument, which Blob keeps like any other import.
+// The benchmarks the overview compares with.
 export const instrumentSeed: (typeof instruments.$inferInsert)[] = [
     {
         id: "ishares-sp500",

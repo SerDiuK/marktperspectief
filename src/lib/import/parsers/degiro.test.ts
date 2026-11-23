@@ -75,23 +75,16 @@ it("reads sold puts, and tells an assignment from an expiry by the shares bought
     expect(errors).toEqual([expect.stringMatching(/^Line 8: only puts/)]);
 });
 
-it("sums a dividend's lines on its value date, so a reversal and rebooking nets to one gross and one net amount", () => {
+it("books each dividend line on its value date, a withholding as cash without gross", () => {
     const { income, fees, errors } = parseDegiroAccount(
         [
             DEGIRO_ACCOUNT_HEADER,
             '19-08-2026,07:18,18-08-2026,ING GROEP N.V.,NL0011821202,Dividendo,,EUR,"100,00",EUR,"100,00",',
             '19-08-2026,07:18,18-08-2026,ING GROEP N.V.,NL0011821202,Retención del dividendo,,EUR,"-15,00",EUR,"85,00",',
-            '08-05-2026,07:15,07-05-2026,LVMH MOET HENNESSY,FR0000121014,Retención del dividendo,,EUR,"-25,00",EUR,"60,00",',
-            '08-05-2026,07:15,07-05-2026,LVMH MOET HENNESSY,FR0000121014,Dividendo,,EUR,"100,00",EUR,"160,00",',
-            '05-06-2026,13:48,07-05-2026,LVMH MOET HENNESSY,FR0000121014,Dividendo,,EUR,"-100,00",EUR,"60,00",',
-            '05-06-2026,13:48,07-05-2026,LVMH MOET HENNESSY,FR0000121014,Retención del dividendo,,EUR,"25,00",EUR,"85,00",',
-            '05-06-2026,13:49,07-05-2026,LVMH MOET HENNESSY,FR0000121014,Dividendo,,EUR,"100,00",EUR,"185,00",',
-            '05-06-2026,13:49,07-05-2026,LVMH MOET HENNESSY,FR0000121014,Retención del dividendo,,EUR,"-24,90",EUR,"160,10",',
             '13-03-2026,07:09,12-03-2026,NESTLE SA,CH0038863350,Dividendo,,CHF,"50,00",CHF,"50,00",',
-            '13-03-2026,07:09,12-03-2026,NESTLE SA,CH0038863350,Retención del dividendo,,CHF,"-17,50",CHF,"32,50",',
-            '14-03-2026,06:37,13-03-2026,,,Retirada Cambio de Divisa,"0,9057",CHF,"-32,50",CHF,"0,00",',
-            '14-03-2026,06:37,13-03-2026,,,Ingreso Cambio de Divisa,,EUR,"35,88",EUR,"195,98",',
-            '28-09-2026,09:23,27-09-2026,,,Ingresos por Préstamo de Valores - Agosto,,EUR,"0,27",EUR,"196,25",',
+            '14-03-2026,06:37,13-03-2026,,,Retirada Cambio de Divisa,"0,9057",CHF,"-50,00",CHF,"0,00",',
+            '14-03-2026,06:37,13-03-2026,,,Ingreso Cambio de Divisa,,EUR,"55,20",EUR,"140,20",',
+            '28-09-2026,09:23,27-09-2026,,,Ingresos por Préstamo de Valores - Agosto,,EUR,"0,27",EUR,"140,47",',
         ].join("\n"),
     );
 
@@ -100,27 +93,23 @@ it("sums a dividend's lines on its value date, so a reversal and rebooking nets 
             isin: "NL0011821202",
             kind: "dividend",
             payDate: "2026-08-18",
+            amount: 100,
             gross: 100,
-            amount: 85,
             currency: "EUR",
         },
-        {
-            isin: "FR0000121014",
-            payDate: "2026-05-07",
-            gross: 100,
-            amount: 75.1,
-        },
-        { isin: "CH0038863350", gross: 50, amount: 32.5, currency: "CHF" },
+        { isin: "NL0011821202", payDate: "2026-08-18", amount: -15, gross: 0 },
+        { isin: "CH0038863350", amount: 50, gross: 50, currency: "CHF" },
         { isin: null, kind: "lending", payDate: "2026-09-27", amount: 0.27 },
     ]);
     expect([fees, errors]).toEqual([[], []]);
 });
 
-it("keeps the French transaction tax but skips trades, DEGIRO's costs on them and cash moves, and reports an unknown line", () => {
+it("keeps the French transaction tax, once per fill, but skips trades, DEGIRO's costs on them and cash moves, and reports an unknown line", () => {
     const { trades, income, fees, errors } = parseDegiroAccount(
         [
             DEGIRO_ACCOUNT_HEADER,
             '14-01-2026,16:09,14-01-2026,DANONE,FR0000120644,Costes de transacción y/o externos de DEGIRO,,EUR,"-4,90",EUR,"0,00",order-1',
+            '14-01-2026,16:09,14-01-2026,DANONE,FR0000120644,Impuesto de transacción Francés,,EUR,"-3,42",EUR,"0,00",order-1',
             '14-01-2026,16:09,14-01-2026,DANONE,FR0000120644,Impuesto de transacción Francés,,EUR,"-3,42",EUR,"0,00",order-1',
             '14-01-2026,16:09,14-01-2026,DANONE,FR0000120644,Compra 15 Danone,,EUR,"-855,90",EUR,"0,00",order-1',
             ',,,,,"@57,06 EUR (FR0000120644)",,,,,,',
@@ -139,21 +128,15 @@ it("keeps the French transaction tax but skips trades, DEGIRO's costs on them an
     );
 
     expect(fees).toMatchObject([
-        {
-            externalKey: expect.stringMatching(/^FR0000120644\|/),
-            date: "2026-01-14",
-            amount: 3.42,
-        },
+        { date: "2026-01-14", amount: 3.42 },
+        { date: "2026-01-14", amount: 3.42 },
         { date: "2026-01-31", amount: 2.5 },
         { amount: 2.5 },
         { date: "2026-04-30", amount: 1.37 },
-        {
-            externalKey: expect.stringMatching(/^\|/),
-            date: "2025-03-21",
-            amount: 2,
-        },
+        { date: "2025-03-21", amount: 2 },
         { amount: -4.9 },
     ]);
+    expect(new Set(fees.map(({ externalKey }) => externalKey)).size).toBe(7);
     expect([trades, income]).toEqual([[], []]);
-    expect(errors).toEqual([expect.stringMatching(/^Line 16\b/)]);
+    expect(errors).toEqual([expect.stringMatching(/^Line 17\b/)]);
 });
