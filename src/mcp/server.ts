@@ -31,7 +31,7 @@ export function buildServer(db: Db) {
         { name: "marktperspectief", version: "0.1.0" },
         {
             instructions:
-                "Amounts are in EUR at ECB rates unless a field names another currency. A trade, a thesis or a new instrument is recorded in two steps: add_transaction, propose_thesis or add_instrument returns a preview and keeps it as a draft, and nothing is saved until the user confirms that draft. When confirm_transaction, confirm_thesis and confirm_instrument aren't among your tools, the preview shows as a card and only its Confirm button saves it, so ask the user to press it. Otherwise call the confirm tool only after the user has agreed to that preview in a message of their own. Mention every warning in the preview.",
+                "Amounts are in EUR at ECB rates unless a field names another currency. A trade, a thesis or a new instrument is recorded in two steps: add_transaction, propose_thesis or add_instrument returns a preview and keeps it as a draft, and nothing is saved until the user confirms that draft. If confirm_transaction, confirm_thesis and confirm_instrument are among your tools, there is no card: call the confirm tool once the user has agreed to that preview in a message of their own. If they aren't, the preview shows as a card and only its Confirm button saves it, so ask the user to press it. Mention every warning in the preview.",
         },
     );
 
