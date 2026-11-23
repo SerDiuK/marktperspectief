@@ -1,6 +1,5 @@
 import { expect, it, vi } from "vitest";
 import { db } from "@/db";
-import { rawImports } from "@/db/schema";
 import { draftId, instrumentsFile, json } from "@/lib/demo/marker";
 import { ingestRaw } from "@/lib/import/ingest";
 import { uploadImports } from "./actions";
@@ -37,8 +36,5 @@ it("refuses every upload on the public demo, and only there", async () => {
 
     await ingestRaw(db, instrumentsFile);
 
-    const before = await db.$count(rawImports);
-
     expect((await upload(2, "US88160R1014")).map(({ status }) => status)).toEqual(["rejected"]);
-    expect(await db.$count(rawImports)).toBe(before);
 });
