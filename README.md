@@ -2,7 +2,7 @@
 
 A self-hosted dashboard for one investor's portfolio across brokers, with Claude as the analyst. Upload your broker exports and it values every holding daily, measures your returns against the market, tracks dividends and sold puts, and keeps a written thesis per holding. Claude reads all of it and records the trades and theses you tell it, through the app's MCP server.
 
-Try the demo at https://marktperspectief-demo.vercel.app: an invented investor, reloaded every night.
+Try the demo at https://marktperspectief-demo.vercel.app: an invented investor, reloaded every night. Claude can [connect to it](#connect-claude-to-the-demo) too.
 
 <video src="https://github.com/user-attachments/assets/e4519396-6b8f-4102-baa2-42ca09474380" controls muted width="100%"></video>
 
@@ -38,7 +38,7 @@ Try the demo at https://marktperspectief-demo.vercel.app: an invented investor, 
 - **Measures** the total return and the money-weighted (XIRR) and time-weighted returns over any range, against the Stoxx 600 and the S&P 500, and what the same euros would have made in the Stoxx 600.
 - **Tracks** the dividends received, gross, with the next 12 months' estimate, the sold puts and their result, and the closed positions.
 - **Keeps a thesis** per holding: its type (compounder, bargain, cyclical, …), two to four pillars and what would prove each one wrong.
-- **Works with Claude** over MCP: a portfolio summary, a price refresh, and trades, theses and new securities told in chat, each kept as a draft until you confirm it.
+- **Works with Claude** over MCP: a portfolio summary, a price refresh, and trades, theses and new securities told in chat, each shown as a card and kept as a draft until you press its Confirm button.
 - Signs in with a passkey only, and a privacy toggle blurs every amount.
 
 ## Limits
@@ -97,8 +97,24 @@ Vercel cron calls `/api/cron/daily` at 22:00 and 05:00 UTC to fetch prices and r
 
 ## Claude
 
+- **claude.ai** connects to `https://<your domain>/api/mcp` as a custom connector. Choose "Use Claude's published identity" rather than "Register automatically", then sign in with your passkey and allow access.
 - **Claude Code** in a checkout starts the stdio MCP server from `.mcp.json`, on the local database.
-- **claude.ai** connects to `https://<your domain>/api/mcp` as a custom connector. Choose "Use Claude's published identity" rather than "Register automatically", then sign in with your passkey and allow access. Keep `confirm_transaction` and `undo_chat_transaction` asking for approval rather than **Always allow**.
+
+A trade, a thesis or a new security told in chat comes back as a preview, kept as a draft for 30 minutes. On claude.ai the preview is a card, an [MCP App](https://github.com/modelcontextprotocol/ext-apps), and only its Confirm button saves it: the confirm tools are visible to the card alone, so Claude can't save a draft for you. Claude Code shows no card, so its stdio server lets Claude confirm once you've agreed to the preview in a message of your own; through the claude.ai connector, Claude Code can read the portfolio but not save. Keep `undo_chat_transaction` asking for approval rather than **Always allow**.
+
+### Connect Claude to the demo
+
+Add a custom connector on claude.ai with the URL `https://marktperspectief-demo.vercel.app/api/mcp`, choosing "Use Claude's published identity". The sign-in page offers "Enter the demo" instead of a passkey; allow access, then ask Claude how the portfolio is doing, or tell it a trade and confirm the card. What you save lasts until the demo reloads at night.
+
+### Evals
+
+`evals/` holds Claude to the rules above. Each case is a scripted chat that a real model plays out against the MCP server on an in-memory portfolio, and a check on what it did: it never confirms a draft the user hasn't answered, it leaves saving to the card where there is one, it passes on the preview's warnings, it doesn't bend a refused sell into one the ledger takes, a question writes nothing, and an undo takes back the right trade. Every case runs three times and has to pass all three.
+
+```bash
+ANTHROPIC_API_KEY=… pnpm eval   # EVAL_MODEL (claude-sonnet-5-5), EVAL_RUNS (3) and EVAL_CASE (part of a name) are optional
+```
+
+The Evals workflow runs them on every PR that touches the MCP server or the evals, with the repo secret `ANTHROPIC_API_KEY`, and by hand against any model.
 
 ## Architecture
 
