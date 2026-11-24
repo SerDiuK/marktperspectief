@@ -11,7 +11,7 @@ export function ClosedPositions({ closed }: { closed: Portfolio["closed"] }) {
 
     return (
         <details className="group">
-            <summary className="flex cursor-pointer list-none items-center gap-x-6 border-b py-4 text-sm hover:bg-muted">
+            <summary className="flex cursor-pointer list-none items-center gap-x-6 border-b py-4 text-sm transition-colors hover:bg-accent">
                 <span className="flex items-center gap-2.5">
                     <ChevronDownIcon className="size-3.5 transition group-open:rotate-180" />
                     <span className="text-base font-bold">Closed</span>

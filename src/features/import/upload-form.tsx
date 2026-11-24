@@ -26,7 +26,7 @@ export function UploadForm() {
                     required
                     accept=".csv,.xlsx,.json"
                     aria-label="Broker exports"
-                    className="text-sm text-muted-foreground file:mr-4 file:h-10 file:cursor-pointer file:border file:border-input file:bg-transparent file:px-4 file:text-sm file:font-semibold file:text-foreground hover:file:bg-muted"
+                    className="text-sm text-muted-foreground file:mr-4 file:h-10 file:cursor-pointer file:border file:border-input file:bg-transparent file:px-4 file:text-sm file:font-semibold file:text-foreground file:transition-colors hover:file:bg-accent active:file:bg-input"
                 />
                 <Button variant="primary" type="submit" disabled={pending}>
                     {pending ? "Importing…" : "Import"}

@@ -39,6 +39,7 @@ Try the demo at https://marktperspectief-demo.vercel.app: an invented investor, 
 - **Tracks** the dividends received, gross, with the next 12 months' estimate, the sold puts and their result, and the closed positions.
 - **Keeps a thesis** per holding: its type (compounder, bargain, cyclical, …), two to four pillars and what would prove each one wrong.
 - **Works with Claude** over MCP: a portfolio summary, a price refresh, and trades, theses and new securities told in chat, each shown as a card and kept as a draft until you press its Confirm button.
+- **Answers questions** about a holding from its panel, where Claude reads the holding, the portfolio and the news and records nothing.
 - Signs in with a passkey only, and a privacy toggle blurs every amount.
 
 ## Limits
@@ -84,7 +85,7 @@ It runs on Vercel, with a Turso database and a private Vercel Blob store.
 
 1. Fork the repo and import it as a Vercel project.
 2. Create a Turso database, and connect a private Blob store to the project, which sets `BLOB_READ_WRITE_TOKEN`.
-3. Set the other env vars in `.env.example`: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (your domain), `CRON_SECRET` and `AUTH_SETUP_TOKEN`, and optionally `OWNER_NAME` and `OWNER_TIME_ZONE`.
+3. Set the other env vars in `.env.example`: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (your domain), `CRON_SECRET` and `AUTH_SETUP_TOKEN`, and optionally `OWNER_NAME`, `OWNER_TIME_ZONE` and `ANTHROPIC_API_KEY`, which turns on the holding panel's Ask button and bills your Anthropic account.
 4. Deploy. The production build migrates the database. Functions run in Dublin (`dub1`): change `regions` in `vercel.json` to match your database.
 5. Open `/login?setup`, enter the setup token and register your passkey.
 
@@ -99,6 +100,7 @@ Vercel cron calls `/api/cron/daily` at 22:00 and 05:00 UTC to fetch prices and r
 
 - **claude.ai** connects to `https://<your domain>/api/mcp` as a custom connector. Choose "Use Claude's published identity" rather than "Register automatically", then sign in with your passkey and allow access.
 - **Claude Code** in a checkout starts the stdio MCP server from `.mcp.json`, on the local database.
+- **The holding panel** has an Ask button when `ANTHROPIC_API_KEY` is set: Lens, the analyst on Claude (Opus 5.5, or Haiku 5.5 on the demo), answers about that holding with its trades, dividends, thesis and last year of closes at hand, can read the portfolio summary and search the web for news, with its sources linked under the answer, and calls no other tool. The conversation lasts while the panel is open.
 
 A trade, a thesis or a new security told in chat comes back as a preview, kept as a draft for 30 minutes. On claude.ai the preview is a card, an [MCP App](https://github.com/modelcontextprotocol/ext-apps), and only its Confirm button saves it: the confirm tools are visible to the card alone, so Claude can't save a draft for you. Claude Code shows no card, so its stdio server lets Claude confirm once you've agreed to the preview in a message of your own; through the claude.ai connector, Claude Code can read the portfolio but not save. Keep `undo_chat_transaction` asking for approval rather than **Always allow**.
 
@@ -108,7 +110,7 @@ Add a custom connector on claude.ai with the URL `https://marktperspectief-demo.
 
 ### Evals
 
-`evals/` holds Claude to the rules above. Each case is a scripted chat that a real model plays out against the MCP server on an in-memory portfolio, and a check on what it did: it never confirms a draft the user hasn't answered, it leaves saving to the card where there is one, it passes on the preview's warnings, it doesn't bend a refused sell into one the ledger takes, a question writes nothing, and an undo takes back the right trade. Every case runs three times and has to pass all three.
+`evals/` holds Claude to the rules above. Each case is a scripted chat that a real model plays out against the MCP server on an in-memory portfolio, and a check on what it did: it never confirms a draft the user hasn't answered, it leaves saving to the card where there is one, it passes on the preview's warnings, it doesn't bend a refused sell into one the ledger takes, a question writes nothing, an undo takes back the right trade, and Lens answers about the holding whose panel is open. Every case runs three times and has to pass all three.
 
 ```bash
 ANTHROPIC_API_KEY=… pnpm eval   # EVAL_MODEL (claude-sonnet-5-5), EVAL_RUNS (3) and EVAL_CASE (part of a name) are optional
@@ -133,7 +135,12 @@ flowchart LR
     login["/login<br/>passkey sign-in"]
     betterauth["/api/auth · Better Auth<br/>passkey; OAuth 2.1 for MCP"]
     remotemcp["/api/mcp<br/>remote MCP tools"]
+    ask["/api/ask<br/>holding panel's Ask button"]
     cron["/api/cron/daily<br/>22:00 and 05:00 UTC"]
+  end
+
+  subgraph anthropic["Anthropic"]
+    claudeapi["Claude API<br/>Opus 5.5 · Haiku 5.5 on the demo"]
   end
 
   subgraph market["Market data"]
@@ -161,6 +168,9 @@ flowchart LR
   proxy -->|no session| login
   proxy -->|session| pages
   proxy -->|session| upload
+  proxy -->|session| ask
+  ask -->|holding, summary| financedb
+  ask -->|stream| claudeapi
   login --> betterauth
   betterauth --> authdb
 

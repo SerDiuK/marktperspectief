@@ -75,7 +75,7 @@ function SortHeader({
             <button
                 type="button"
                 onClick={handleClick}
-                className="group/sort inline-flex h-10 items-center gap-1 font-bold hover:text-ring"
+                className="group/sort inline-flex h-10 items-center gap-1 font-bold transition-colors hover:text-ring"
             >
                 {children}
                 <span

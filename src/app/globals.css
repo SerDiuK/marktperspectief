@@ -2,6 +2,12 @@
 
 @custom-variant private (&:where([data-privacy] *));
 
+@property --elapsed {
+    syntax: "<integer>";
+    inherits: false;
+    initial-value: 0;
+}
+
 /* Swiss theme, dark only. Hex values and contrast against --background are
    for reference. Each chart colour keeps one meaning in every chart. */
 :root {
@@ -11,6 +17,7 @@
     --foreground: oklch(0.965 0.003 250); /* #f2f4f5  16.7:1 */
     --popover: oklch(0.235 0.005 250); /* #1c1e20 */
     --secondary: oklch(0.255 0.006 250); /* #212326 */
+    --accent: oklch(0.28 0.006 250); /* #282b2e  hover, on --background and --popover alike */
     --muted: oklch(0.225 0.005 250); /* #1a1c1e */
     --muted-foreground: oklch(0.76 0.008 250); /* #adb1b6  8.6:1 */
     --border: oklch(0.33 0.006 250); /* #333638 */
@@ -50,6 +57,7 @@
     --color-primary: var(--primary);
     --color-primary-foreground: var(--primary-foreground);
     --color-secondary: var(--secondary);
+    --color-accent: var(--accent);
     --color-muted: var(--muted);
     --color-muted-foreground: var(--muted-foreground);
     --color-destructive: var(--destructive);
@@ -87,6 +95,13 @@
     :focus-visible {
         outline: 2px solid var(--ring);
         outline-offset: 2px;
+    }
+    button:not(:disabled) {
+        cursor: pointer;
+    }
+    html:has(dialog:modal) {
+        overflow: hidden;
+        padding-right: var(--scrollbar-width, 0px);
     }
     summary::-webkit-details-marker {
         display: none;
@@ -141,5 +156,51 @@
     }
     .arrow-down::before {
         content: "▼" / "";
+    }
+
+    .shimmer {
+        background:
+            linear-gradient(90deg, var(--muted-foreground) 40%, var(--foreground) 50%, var(--muted-foreground) 60%) 0 0
+            / 300% 100%;
+        background-clip: text;
+        color: transparent;
+        animation:
+            shimmer 2s linear infinite,
+            fade-in 0.3s ease-out;
+    }
+    .elapsed {
+        counter-reset: elapsed var(--elapsed);
+        animation: elapsed 3600s steps(3600, end) forwards;
+    }
+    .elapsed::after {
+        content: counter(elapsed) "s";
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .shimmer {
+            background: none;
+            color: var(--muted-foreground);
+            animation: none;
+        }
+    }
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+}
+
+@keyframes elapsed {
+    to {
+        --elapsed: 3600;
+    }
+}
+
+@keyframes shimmer {
+    from {
+        background-position: 100% 0;
+    }
+    to {
+        background-position: 0 0;
     }
 }

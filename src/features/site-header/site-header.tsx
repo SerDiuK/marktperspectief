@@ -1,4 +1,6 @@
+import { cn } from "cn";
 import Link from "next/link";
+import { buttonClass } from "@/components/button";
 import { IconLabel } from "@/components/icon-label";
 import { UploadIcon } from "@/components/icons";
 import { Logo, LogoMark } from "@/components/logo";
@@ -15,7 +17,10 @@ export function SiteHeader({ current }: { current: "/" | "/import" }) {
                 <Link
                     href="/import"
                     aria-current={current === "/import" ? "page" : undefined}
-                    className="group relative inline-flex size-9 items-center justify-center text-muted-foreground hover:text-foreground aria-[current=page]:bg-primary aria-[current=page]:text-primary-foreground"
+                    className={cn(
+                        buttonClass({ variant: "ghost", size: "icon" }),
+                        "group relative aria-[current=page]:bg-primary aria-[current=page]:text-primary-foreground",
+                    )}
                 >
                     <UploadIcon className="size-4" />
                     <IconLabel>Import</IconLabel>

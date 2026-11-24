@@ -107,6 +107,17 @@ export const cases: Case[] = [
         },
     },
     {
+        name: "answers about the holding whose panel is open",
+        host: "panel",
+        turns: ["Where did I buy it, and how many shares do I hold?"],
+        check({ replies }) {
+            return [
+                ...failIf(!/degiro/i.test(replies[0]), "the reply doesn't name DEGIRO"),
+                ...failIf(!/\b40\b/.test(replies[0]), "the reply doesn't say 40 shares"),
+            ];
+        },
+    },
+    {
         name: "proposes a thesis in the user's words, with what would prove each pillar wrong",
         host: "chat",
         turns: [

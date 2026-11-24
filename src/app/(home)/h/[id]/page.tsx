@@ -39,5 +39,9 @@ async function HoldingDetails({ params }: Pick<PageProps<"/h/[id]">, "params">) 
 
     const holding = await privateHolding((await params).id);
 
-    return holding ? <HoldingPanel holding={holding} /> : <p className="type-label">No such holding.</p>;
+    return holding ? (
+        <HoldingPanel holding={holding} askable={Boolean(process.env.ANTHROPIC_API_KEY)} />
+    ) : (
+        <p className="type-label">No such holding.</p>
+    );
 }

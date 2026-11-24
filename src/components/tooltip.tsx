@@ -10,7 +10,7 @@ export function InfoTooltip({ label, children }: { label: string; children: Reac
                 type="button"
                 aria-label={label}
                 aria-describedby={id}
-                className="text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground transition-colors hover:text-foreground"
             >
                 <InfoIcon className="size-3.5" />
             </button>

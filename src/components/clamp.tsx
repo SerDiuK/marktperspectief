@@ -31,7 +31,7 @@ export function Clamp({ children }: { children: React.ReactNode }) {
                     type="button"
                     aria-expanded={open}
                     onClick={toggle}
-                    className="-mt-2 self-start text-note font-semibold text-muted-foreground hover:text-foreground"
+                    className="-mt-2 self-start text-note font-semibold text-muted-foreground transition-colors hover:text-foreground"
                 >
                     {open ? "Less" : "More"}
                 </button>

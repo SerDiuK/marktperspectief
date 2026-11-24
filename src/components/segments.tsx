@@ -27,7 +27,7 @@ export function Segments<T extends string>({
                     value={option}
                     aria-pressed={option === value}
                     onClick={pick}
-                    className="-ml-px h-8 min-w-11 px-2.5 text-note font-semibold font-stretch-85% text-muted-foreground ring-1 ring-input ring-inset first:ml-0 hover:bg-muted hover:text-foreground aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:ring-primary"
+                    className="-ml-px h-8 min-w-11 px-2.5 text-note font-semibold font-stretch-85% text-muted-foreground ring-1 ring-input ring-inset first:ml-0 transition-colors hover:bg-accent hover:text-foreground active:bg-input aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:ring-primary"
                 >
                     {text}
                 </button>
