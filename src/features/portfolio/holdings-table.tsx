@@ -158,7 +158,7 @@ export function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
             </TableHeader>
             <tbody>
                 {sortRows(rows, sort).map((row) => (
-                    <TableRow key={row.instrumentId} className="relative">
+                    <TableRow key={row.instrumentId} variant="link">
                         <TableCell>
                             <HoldingLink instrumentId={row.instrumentId}>
                                 <span className="block text-base font-semibold">{row.name}</span>

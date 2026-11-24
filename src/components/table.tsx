@@ -20,8 +20,17 @@ export function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     return <th className={cn("h-10 font-bold not-first:pl-4", className)} {...props} />;
 }
 
-export function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
-    return <tr className={cn("border-b transition-colors hover:bg-accent", className)} {...props} />;
+const variants = {
+    plain: "",
+    link: "relative transition-colors hover:bg-accent active:bg-input",
+};
+
+export function TableRow({
+    variant = "plain",
+    className,
+    ...props
+}: React.ComponentProps<"tr"> & { variant?: keyof typeof variants }) {
+    return <tr className={cn("border-b", variants[variant], className)} {...props} />;
 }
 
 export function TableCell({ className, ...props }: React.ComponentProps<"td">) {
