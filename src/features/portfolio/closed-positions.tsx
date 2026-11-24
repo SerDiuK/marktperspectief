@@ -31,7 +31,7 @@ export function ClosedPositions({ closed }: { closed: Portfolio["closed"] }) {
                 </TableHeader>
                 <tbody>
                     {closed.map((period) => (
-                        <TableRow key={`${period.instrumentId}-${period.from}`} className="relative">
+                        <TableRow key={`${period.instrumentId}-${period.from}`} variant="link">
                             <TableCell className="pl-6">
                                 <HoldingLink instrumentId={period.instrumentId}>{period.name}</HoldingLink>
                             </TableCell>
