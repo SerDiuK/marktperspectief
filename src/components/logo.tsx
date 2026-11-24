@@ -29,3 +29,15 @@ export function LogoMark({ className }: { className?: string }) {
         </svg>
     );
 }
+
+export function LensMark({ className }: { className?: string }) {
+    return (
+        <svg viewBox="0 0 56 56" aria-hidden="true" className={className}>
+            <path
+                className="fill-primary"
+                d="M0 12H3.2V3.2H12V0H0ZM52.8 3.2V12H56V0H44V3.2ZM0 56H12V52.8H3.2V44H0ZM44 52.8V56H56V44H52.8V52.8Z"
+            />
+            <path className="fill-logo-dot" d="M20 20H36V36H20Z" />
+        </svg>
+    );
+}

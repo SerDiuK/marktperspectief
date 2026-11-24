@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/button";
 import { IconLabel } from "@/components/icon-label";
 import { EyeIcon, EyeOffIcon } from "@/components/icons";
 import { privacyKey } from "./privacy";
@@ -14,17 +15,13 @@ function togglePrivacy() {
 
 export function PrivacyToggle() {
     return (
-        <button
-            type="button"
-            onClick={togglePrivacy}
-            className="group relative inline-flex size-9 items-center justify-center text-muted-foreground hover:text-foreground"
-        >
+        <Button variant="ghost" size="icon" onClick={togglePrivacy} className="group relative">
             <EyeIcon className="size-4 private:hidden" />
             <EyeOffIcon className="hidden size-4 private:block" />
             <IconLabel>
                 <span className="private:hidden">Hide amounts</span>
                 <span className="hidden private:inline">Show amounts</span>
             </IconLabel>
-        </button>
+        </Button>
     );
 }

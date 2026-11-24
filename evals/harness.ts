@@ -1,10 +1,10 @@
-import Anthropic from "@anthropic-ai/sdk";
-import type { MessageParam, Tool } from "@anthropic-ai/sdk/resources/messages";
-import { type CallToolResult, Client, InMemoryTransport } from "@modelcontextprotocol/client";
+import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
+import type { CallToolResult } from "@modelcontextprotocol/client";
 import type { Db } from "@/db/connect";
 import { priceDaily } from "@/db/schema";
 import { freshDb } from "@/db/test-db";
 import { addDays, ownerDate } from "@/lib/dates";
+import { ask, connect, converse, type Step } from "@/mcp/agent";
 import { addTransaction, confirmTransaction } from "@/mcp/chat";
 import { buildServer } from "@/mcp/server";
 
@@ -14,12 +14,10 @@ export type Run = { db: Db; calls: Call[]; replies: string[] };
 
 export type Case = {
     name: string;
-    host: "card" | "chat";
+    host: "card" | "chat" | "panel";
     turns: string[];
     check: (run: Run) => Promise<string[]> | string[];
 };
-
-const anthropic = new Anthropic();
 
 export const model = process.env.EVAL_MODEL ?? "claude-sonnet-5-5";
 
@@ -66,70 +64,58 @@ async function portfolio() {
     return db;
 }
 
-const text = (result: CallToolResult) =>
-    result.content.map((block) => (block.type === "text" ? block.text : JSON.stringify(block))).join("\n");
+async function collect(steps: AsyncIterable<Step>, turn: number, calls: Call[]) {
+    let reply = "";
+
+    for await (const step of steps) {
+        if (step.type === "text") reply += step.text;
+        else if (step.type === "tool") calls.push({ turn, name: step.name, input: step.input, result: step.result });
+    }
+
+    return reply;
+}
 
 export async function run({ host, turns }: Case): Promise<Run> {
     const db = await portfolio();
-    const server = buildServer(db, { modelConfirms: host === "chat", now });
-    const client = new Client({ name: `eval-${host}`, version: "1.0.0" });
-    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    const calls: Call[] = [];
+    const replies: string[] = [];
 
-    await server.connect(serverSide);
-    await client.connect(clientSide);
+    if (host === "panel") {
+        const messages: MessageParam[] = [];
 
-    const listed = (await client.listTools()).tools.filter(({ name, _meta }) => {
-        const visibility = (_meta?.ui as { visibility?: string[] } | undefined)?.visibility ?? ["model", "app"];
+        for (const [turn, message] of turns.entries()) {
+            messages.push({ role: "user", content: message });
 
-        return !offline.has(name) && visibility.includes("model");
-    });
-    const tools: Tool[] = listed.map(({ name, description, inputSchema }, index) => ({
-        name,
-        description,
-        input_schema: inputSchema as Tool.InputSchema,
-        ...(index === listed.length - 1 && { cache_control: { type: "ephemeral" as const } }),
-    }));
+            const steps = await ask(db, { instrumentId: "exor", messages }, now(), model);
+
+            if (!steps) throw new Error("No Exor holding");
+
+            const reply = await collect(steps, turn, calls);
+
+            replies.push(reply);
+            messages.push({ role: "assistant", content: reply });
+        }
+
+        return { db, calls, replies };
+    }
+
+    const { client, tools, call } = await connect(
+        buildServer(db, { modelConfirms: host === "chat", now }),
+        ({ name, _meta }) => {
+            const visibility = (_meta?.ui as { visibility?: string[] } | undefined)?.visibility ?? ["model", "app"];
+
+            return !offline.has(name) && visibility.includes("model");
+        },
+    );
     const system = [
         `You are Claude. The user has connected Marktperspectief, their portfolio app, as a connector. Today is ${today}.`,
         client.getInstructions() ?? "",
     ].join("\n\n");
     const messages: MessageParam[] = [];
-    const calls: Call[] = [];
-    const replies: string[] = [];
 
     for (const [turn, message] of turns.entries()) {
-        const said: string[] = [];
-
         messages.push({ role: "user", content: message });
-
-        for (let step = 0; step < 8; step++) {
-            const response = await anthropic.messages.create({ model, max_tokens: 2048, system, tools, messages });
-            const uses = response.content.filter((block) => block.type === "tool_use");
-
-            messages.push({ role: "assistant", content: response.content });
-            said.push(...response.content.flatMap((block) => (block.type === "text" ? [block.text] : [])));
-
-            if (uses.length === 0) break;
-
-            const results = [];
-
-            for (const use of uses) {
-                const input = use.input as Record<string, unknown>;
-                const result = (await client.callTool({ name: use.name, arguments: input })) as CallToolResult;
-
-                calls.push({ turn, name: use.name, input, result });
-                results.push({
-                    type: "tool_result" as const,
-                    tool_use_id: use.id,
-                    content: text(result),
-                    is_error: result.isError ?? false,
-                });
-            }
-
-            messages.push({ role: "user", content: results });
-        }
-
-        replies.push(said.join("\n"));
+        replies.push(await collect(converse({ model, system, tools, call, messages }), turn, calls));
     }
 
     await client.close();

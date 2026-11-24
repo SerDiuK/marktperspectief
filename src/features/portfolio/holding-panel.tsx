@@ -11,6 +11,7 @@ import {
     formatShares,
 } from "@/lib/format";
 import type { Holding } from "@/lib/portfolio/holding";
+import { HoldingAsk } from "./holding-ask";
 import { HoldingChart } from "./holding-chart";
 import { HoldingType } from "./holding-type";
 
@@ -41,9 +42,11 @@ function Stat({ label, children }: { label: string; children: React.ReactNode })
 }
 
 export function HoldingPanel({
-    holding: { name, symbol, currency, closes, entries, position, periods },
+    holding: { instrumentId, name, symbol, currency, closes, entries, position, periods },
+    askable,
 }: {
     holding: Holding;
+    askable: boolean;
 }) {
     const listing = formatListing(symbol);
     const last = closes.at(-1);
@@ -54,13 +57,8 @@ export function HoldingPanel({
     );
     const realised = periods.reduce((sum, { realisedEur }) => sum + realisedEur, 0);
     const thesis = position?.thesis;
-
-    return (
+    const details = (
         <>
-            <div className="flex flex-col gap-2 pr-12">
-                {listing && <span className="type-label">{listing}</span>}
-                <h2 className="type-section">{name}</h2>
-            </div>
             {last && (
                 <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1.5 border-t-2 border-foreground pt-3.5">
                     <span className="type-kpi tabular-nums">{formatPrice(last.close, currency)}</span>
@@ -197,6 +195,24 @@ export function HoldingPanel({
                     </table>
                 </div>
             </div>
+        </>
+    );
+
+    const title = (
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+            {listing && <span className="type-label">{listing}</span>}
+            <h2 className="type-section">{name}</h2>
+        </div>
+    );
+
+    return askable ? (
+        <HoldingAsk title={title} instrumentId={instrumentId} name={name} hasThesis={Boolean(thesis)}>
+            {details}
+        </HoldingAsk>
+    ) : (
+        <>
+            <div className="flex pr-12">{title}</div>
+            {details}
         </>
     );
 }

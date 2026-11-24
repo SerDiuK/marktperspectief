@@ -26,11 +26,13 @@
         "auth:schema": "auth generate --config src/lib/auth.ts --output src/db/auth-schema.ts --yes"
     },
     "dependencies": {
+        "@anthropic-ai/sdk": "1.12.0",
         "@better-auth/cimd": "1.7.14",
         "@better-auth/mcp": "1.7.14",
         "@better-auth/oauth-provider": "1.7.14",
         "@better-auth/passkey": "1.7.14",
         "@libsql/client": "^0.18.0",
+        "@modelcontextprotocol/client": "2.4.0",
         "@modelcontextprotocol/ext-apps": "2.1.0",
         "@modelcontextprotocol/server": "2.4.0",
         "@vercel/blob": "2.8.2",
@@ -47,9 +49,7 @@
         "zod": "^4.6.7"
     },
     "devDependencies": {
-        "@anthropic-ai/sdk": "1.12.0",
         "@biomejs/biome": "2.5.15",
-        "@modelcontextprotocol/client": "2.4.0",
         "@tailwindcss/turbopack": "^4",
         "@types/jsdom": "^30.0.0",
         "@types/node": "^22",

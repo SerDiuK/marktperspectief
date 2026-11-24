@@ -21,7 +21,7 @@ export function TableHead({ className, ...props }: React.ComponentProps<"th">) {
 }
 
 export function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
-    return <tr className={cn("border-b hover:bg-muted", className)} {...props} />;
+    return <tr className={cn("border-b transition-colors hover:bg-accent", className)} {...props} />;
 }
 
 export function TableCell({ className, ...props }: React.ComponentProps<"td">) {

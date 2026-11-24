@@ -183,12 +183,12 @@ export function PortfolioChart({
                     onPick={setView}
                 />
                 {view === "value" ? (
-                    <label className="flex cursor-pointer items-center gap-2 hover:text-foreground">
+                    <label className="group flex cursor-pointer items-center gap-2 transition-colors hover:text-foreground">
                         <input
                             type="checkbox"
                             checked={invested}
                             onChange={toggleInvested}
-                            className="size-3.5 cursor-pointer appearance-none ring-1 ring-input ring-inset checked:bg-primary checked:ring-primary"
+                            className="size-3.5 cursor-pointer appearance-none ring-1 ring-input transition-colors ring-inset group-hover:ring-foreground checked:bg-primary checked:ring-primary"
                         />
                         <span className="h-0.75 w-5 bg-chart-3" />
                         {config.investedEur.label}

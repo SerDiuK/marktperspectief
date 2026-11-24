@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useState } from "react";
 import { Button } from "@/components/button";
+import { Input } from "@/components/input";
 import { authClient } from "@/lib/auth-client";
 
 function SetupForm({ onRegister }: { onRegister: (setupToken: string) => void }) {
@@ -23,13 +24,12 @@ function SetupForm({ onRegister }: { onRegister: (setupToken: string) => void })
 
     return (
         <form onSubmit={handleSubmit} className="flex flex-col gap-2">
-            <input
+            <Input
                 type="password"
                 value={setupToken}
                 onChange={handleChange}
                 placeholder="Setup token"
                 autoComplete="off"
-                className="h-10 border border-input bg-transparent px-3 text-sm placeholder:text-muted-foreground"
             />
             <Button type="submit">Register passkey</Button>
         </form>
